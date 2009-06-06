@@ -24,6 +24,17 @@ main =
 
      src <- readFile srcFilePath
  
-     case parse hparser defaultSymbols srcName src of
-       Left err   -> putStrLn "Parse error:" >> print err
-       Right tree -> putStrLn "Parse tree:"  >> print tree
+     let result = parse hparser defaultSymbols srcName src
+ 
+     showParse result
+
+
+showParse (Left err)   =
+  do putStr "Parse Error:"
+     print err
+     
+showParse (Right (tree, state)) = 
+  do putStr "Parse tree: "
+     print tree
+     putStr "\nFinal Parser State: "
+     print state

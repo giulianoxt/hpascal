@@ -2,8 +2,9 @@
 module Parsing where
 
 import Language
-import ParserRun (HParser)
+import TypeChecker
 import qualified Token as Tk
+import ParserRun (HParser, ParserState)
 
 import Data.Char (isLetter)
 import Control.Monad (liftM)
@@ -11,8 +12,11 @@ import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Expr
 
 
-hparser :: HParser Program
-hparser = Tk.whiteSpace >> program
+hparser :: HParser (Program, ParserState)
+hparser = do Tk.whiteSpace
+             p <- program
+             st <- getState
+             return (p, st)
 
 
 program :: HParser Program
@@ -28,6 +32,7 @@ program =
 block :: HParser Block
 block = 
   do decl <- declarations
+     processDeclPart decl
      stat <- compoundStmt
      return (Block decl stat)
 
@@ -88,6 +93,7 @@ expression :: HParser Expr
 expression = buildExpressionParser operators simpleExpr
 
 
+operators :: [[Operator Char ParserState Expr]]
 operators =
   [ [Infix (parseOp "**" (:**:)) AssocRight],
     

@@ -12,7 +12,7 @@ data DeclarationPart =
   DeclPart [VariableDeclaration]
  deriving (Show)
 
-data VariableDeclaration = VarDec [Identifier] Type
+data VariableDeclaration = VarDec [Identifier] TypeDefinition
  deriving (Show)
 
 data Statement =
@@ -54,8 +54,8 @@ data Expr =
 
 
 type Number = Int
-type Type = String
 type Boolean = Bool
 type AssignOp = String
 type Identifier = String
+type TypeDefinition = String
 type VariableReference = Identifier

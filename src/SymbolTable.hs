@@ -13,11 +13,13 @@ type SymbolTable = Map String (Value, String)
 data Type = 
    IntegerT
  | BooleanT
+ deriving (Show)
 
 data Value = 
    VInt Int
  | VReal Double
  | VBool Bool
+ deriving (Show)
 
 builtinTypes   :: TypeTable
 builtinTypes =
@@ -27,3 +29,7 @@ builtinTypes =
 
 builtinSymbols :: SymbolTable
 builtinSymbols = empty
+
+defaultV :: Type -> Value
+defaultV IntegerT = VInt 0
+defaultV BooleanT = VBool False
