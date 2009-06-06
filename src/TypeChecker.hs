@@ -10,7 +10,7 @@ import ParserRun (HParser)
 
 import Control.Monad (forM_, liftM)
 import Data.Map (insert, lookup, Map)
-import Text.ParserCombinators.Parsec (getState, updateState)
+import Text.ParserCombinators.Parsec
 
 
 -- Retorna a tabela de simbolos no estado do parser
@@ -55,7 +55,15 @@ getType typeD = do
   tTable <- typeT
   case mlookup typeD tTable of
     Just t  -> return t
-    Nothing -> fail $ "Unknown type: " ++ typeD
+    Nothing -> typeCheckFail $ "Unknown type: " ++ typeD
+
+
+typeCheckFail :: String -> HParser a
+typeCheckFail msg =
+  do inp <- getInput
+     setInput ('x' : inp)
+     anyToken
+     fail msg
 
 
 -- Lookup num Map
