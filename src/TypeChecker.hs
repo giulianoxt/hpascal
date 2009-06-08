@@ -1,8 +1,8 @@
--- | Contêm funções responsáveis pelas checagens de semântica
--- estática de um programa HPascal.
+-- | Contem funcoes responsaveis pelas checagens de semantica
+-- estatica de um programa HPascal.
 --
--- Inclui checagem de tipos, definição de tipos inválida,
--- re-definição de identificadores, identificadores desconhecidos, etc.
+-- Inclui checagem de tipos, definicao de tipos invalida,
+-- re-definicao de identificadores, identificadores desconhecidos, etc.
 
 module TypeChecker where
 
@@ -13,11 +13,11 @@ import Data.Map
 import Control.Monad (forM_)
 
 
--- | Parser responsável por processar uma declaraçao de
--- variável ('VariableDeclaration').
+-- | Parser responsavel por processar uma declaracao de
+-- variavel ('VariableDeclaration').
 -- 
--- Resolve o tipo de variável para um tipo concreto e 
--- chama 'insertSymbol' para inserí-la na tabela interna
+-- Resolve o tipo de variavel para um tipo concreto e 
+-- chama 'insertSymbol' para inseri-la na tabela interna
 processVarDecl :: VariableDeclaration -> HParser ()
 processVarDecl (VarDec idl typeD) =
   do typeV <- getType typeD
@@ -27,7 +27,7 @@ processVarDecl (VarDec idl typeD) =
 -- | Retorna o valor concreto de tipo ('Type') relativo
 -- a um identificador de tipo ('TypeDefinition').
 --
--- Faz um lookup na tabela interna. Caso o tipo ainda não
+-- Faz um lookup na tabela interna. Caso o tipo ainda nao
 -- tenha sido definido, retorna um UnknownType e loga o erro
 -- no estado interno do parser.
 getType :: TypeDefinition -> HParser Type
@@ -39,9 +39,9 @@ getType typeD =
                     return UnknownType
 
 
--- | Dado um par (identificador, tipo), tenta inserí-lo
--- na tabela de símbolos (usando 'updateSymT'), logando um erro
--- caso o símbolo já esteja presente lá.
+-- | Dado um par (identificador, tipo), tenta inseri-lo
+-- na tabela de simbolos (usando 'updateSymT'), logando um erro
+-- caso o simbolo ja esteja presente la.
 insertSymbol :: Identifier -> Type -> HParser ()
 insertSymbol symId typeV =
   do symTable <- getSymT

@@ -1,4 +1,4 @@
--- | Definições necessárias para a execução do parser principal
+-- | Definicoes necessarias para a execucao do parser principal
 module ParserRun where
 
 import Language
@@ -7,9 +7,9 @@ import ParsingState (initialState, ParserState)
 import Text.ParserCombinators.Parsec hiding(parse)
 
 
--- | Função para execução do parser principal do HPascal
-parse :: SourceName     -- ^ Nome do arquivo do código
-      -> String         -- ^ Código
-      -> Either         -- ^ Erro ou árvore de parsing e estado final
-          ParseError (Program, ParserState)  
+-- | Funcao para execução do parser principal do HPascal
+parse :: SourceName                                -- ^ Nome do arquivo do codigo
+      -> String                                    -- ^ Codigo
+      -> Either ParseError (Program, ParserState)  -- ^ Erro ou arvore de parsing e estado final
+          
 parse src input = runParser hparser initialState src input

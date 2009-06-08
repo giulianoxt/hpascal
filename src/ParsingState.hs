@@ -1,11 +1,11 @@
--- | Contêm a definição do estado interno que o Parser
--- irá manter, durante a sua execução, além de funções
--- e parsers específicos para a sua manipulação.
+-- | Contem a definicao do estado interno que o Parser
+-- ira manter, durante a sua execucao, alem de funcoes
+-- e parsers especificos para a sua manipulacao.
 --
--- No estado interno, mantêm-se um 'ParserState'. Normalmente,
--- esse estado não é modificado, e sim simplesmente passado
+-- No estado interno, mantem-se um 'ParserState'. Normalmente,
+-- esse estado nao e modificado, e sim simplesmente passado
 -- entre todos os parsers da cadeia. Alguns parsers especiais,
--- como alguns ilustrados abaixo, irão acessar o estado e possivelmente
+-- como alguns ilustrados abaixo, irao acessar o estado e possivelmente
 -- modifica-lo (utilizando o parser 'updateState' presente no Parsec)
 
 module ParsingState where
@@ -26,15 +26,15 @@ type HParser a = GenParser Char ParserState a
 
 -- | Estado interno do parser
 --
--- As duas tabelas vão sendo montadas durante o processo de parsing.
+-- As duas tabelas vao sendo montadas durante o processo de parsing.
 --
--- A lista 'errors' acumula os erros de compilação que vão sendo
+-- A lista 'errors' acumula os erros de compilacao que vao sendo
 -- encontrados durante o parsing, para que depois sejam mostrados
--- ao usuário. 
+-- ao usuario. 
 data ParserState = PState {
-   symT   :: SymbolTable    -- ^ Tabela de símbolos
+   symT   :: SymbolTable    -- ^ Tabela de simbolos
  , typeT  :: TypeTable      -- ^ Tabela de tipos
- , errors :: [CompError]    -- ^ Lista de erros de compilação
+ , errors :: [CompError]    -- ^ Lista de erros de compilacao
 } deriving (Show)
 
 
@@ -42,30 +42,31 @@ data ParserState = PState {
 -- tipos concretos.
 --
 -- Note que nem todos os tipos utilizados em um programa
--- estarão presentes nessa tabela, pois o HPascal permite
--- declaração de variáveis com tipos anônimos (sem identificadores).
+-- estarao presentes nessa tabela, pois o HPascal permite
+-- declaracao de variaveis com tipos anonimos (sem identificadores).
 -- Ex: var x : array (3..5) of string;  
 type TypeTable   = Map Identifier Type
 
 
--- | Tabela geral de símbolos (variáveis, subrotinas, etc.). Mapeia
--- identificadores para os tipos concretos dos símbolos.
+-- | Tabela geral de simbolos (variaveis, subrotinas, etc.). Mapeia
+-- identificadores para os tipos concretos dos simbolos.
 --
--- Devido à declaração com tipos anônimos, nem todos os tipos presentes
--- aqui estarão na tabela 'TypeTable'.
+-- Devido a declaracao com tipos anonimos, nem todos os tipos presentes
+-- aqui estarao na tabela 'TypeTable'.
 --
--- Não guardamos o valor atual da variável, por exemplo, pois as tabelas
--- deste módulo só serão utilizadas durante o parsing.
+-- Nao guardamos o valor atual da variavel, por exemplo, pois as tabelas
+-- deste modulo so serao utilizadas durante o parsing.
 type SymbolTable = Map Identifier Type
 
 
 -- | Tipo variante em Haskell usado para representar os tipos
 -- concretos presentes em programas HPascal
 --
--- O tipo indefinido ('UnknownType') é utilizado quando a declaração
--- da variável contêm um tipo ilegal (ex: var x : TipoNaoDefinido;). Assim,
--- podemos continuar o processo de parsing e análise, possivelmente encontrando
--- mais erros, em vez de parar na primeira ocorrência.
+-- O tipo indefinido ('UnknownType') e utilizado quando a declaracao
+-- da variavel contem um tipo ilegal (ex: var x : TipoNaoDefinido;).
+--
+-- Assim, podemos continuar o processo de parsing e analise, possivelmente
+-- encontrando mais erros, em vez de parar na primeira ocorrencia.
 data Type = 
    IntegerT     -- ^ Inteiro
  | BooleanT     -- ^ Booleano
@@ -73,26 +74,26 @@ data Type =
  deriving (Show)
 
 
--- | Um único erro de compilação.
--- Contêm informações sobre onde o erro ocorreu no texto ('SourcePos') e
+-- | Um unico erro de compilacao.
+-- Contem informacoes sobre onde o erro ocorreu no texto ('SourcePos') e
 -- uma mensagem descritiva ('ErrorMsg').
 data CompError = CompError SourcePos ErrorMsg
 
 
--- | Descrição de uma mensagem de erro de compilação
+-- | Descricao de uma mensagem de erro de compilacao
 data ErrorMsg  =
    TypeError             String  -- ^ Erro de tipo
- | UnknownIdentifier     String  -- ^ Identificador não reconhecido
- | IdentifierAlreadyUsed String  -- ^ Declaração dupla de identificador
+ | UnknownIdentifier     String  -- ^ Identificador nao reconhecido
+ | IdentifierAlreadyUsed String  -- ^ Declaracao dupla de identificador
 
 
--- | Representação de um erro de compilação
+-- | Representacao de um erro de compilacao
 instance Show CompError where
   show (CompError srcPos msg) =
     "Compilation Error at " ++ show srcPos ++ ":\n" ++ show msg
 
 
--- | Representação da mensagem de um erro de compilação
+-- | Representacao da mensagem de um erro de compilacao
 instance Show ErrorMsg where
   show (TypeError msg)             =
     "Type error: "              ++ quoted msg
@@ -107,7 +108,7 @@ quoted :: String -> String
 quoted = (++ "\"") . ('"' :)
 
 
--- | Extrai uma representação dos erros de compilação
+-- | Extrai uma representacao dos erros de compilacao
 -- presentes em um ParserState, se existirem.
 compErrors :: ParserState -> Maybe String
 compErrors ps
@@ -116,7 +117,7 @@ compErrors ps
  where errL = errors ps
 
 
--- | Parser utilizado para extrair a tabela de símbolos do estado interno
+-- | Parser utilizado para extrair a tabela de simbolos do estado interno
 getSymT  :: HParser SymbolTable
 getSymT  = symT  `liftM` getState
 
@@ -126,8 +127,8 @@ getTypeT :: HParser TypeTable
 getTypeT = typeT `liftM` getState
 
 
--- | Insere o par (identificador, tipo) na tabela de símbolos,
--- sem se preocupar se o símbolo já estava presente
+-- | Insere o par (identificador, tipo) na tabela de simbolos,
+-- sem se preocupar se o simbolo ja estava presente
 updateSymT :: Identifier -> Type -> HParser ()
 updateSymT symId typeV = updateState $ \st -> 
   let symTable = symT st in
@@ -135,19 +136,19 @@ updateSymT symId typeV = updateState $ \st ->
 
 
 -- | Insere o par (identificador, tipo) na tabela de tipos,
--- sem se preocupar se o tipo já estava presente
+-- sem se preocupar se o tipo ja estava presente
 updateTypeT :: Identifier -> Type -> HParser ()
 updateTypeT typeId typeV = updateState $ \st ->
   let typeTable = typeT st in
   st { typeT = insert typeId typeV typeTable }
 
 
--- | Parser utilizado para logar um erro de compilação no
--- estado interno. O 'logError' não interrompe o processo de
+-- | Parser utilizado para logar um erro de compilacao no
+-- estado interno. O 'logError' nao interrompe o processo de
 -- parsing, somente armazenando os erros encontrados ao longo do caminho.
 --
--- É responsabilidade de quem chama o parser (módulo principal) de
--- extrair as mensagens de erros (utilizando 'compErrors') e exibí-las.
+-- E responsabilidade de quem chama o parser (modulo principal) de
+-- extrair as mensagens de erros (utilizando 'compErrors') e exibi-las.
 logError :: ErrorMsg -> HParser ()
 logError msg = 
   do pos <- getPosition
@@ -157,8 +158,8 @@ logError msg =
       st { errors = errL ++ [err] }
 
 
--- | Estado inicial do parser. Contêm todos os nomes pré-definidos pelo
--- interpretador e uma lista vazia de erros de compilação.
+-- | Estado inicial do parser. Contem todos os nomes pre-definidos pelo
+-- interpretador e uma lista vazia de erros de compilacao.
 initialState   :: ParserState
 initialState = PState {
    symT   = empty

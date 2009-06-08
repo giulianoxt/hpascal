@@ -1,12 +1,12 @@
--- |Módulo contendo a definição da árvore abstrata
--- de sintaxe do HPascal. Pedaços da árvore são definidos
+-- |Modulo contendo a definicao da arvore abstrata
+-- de sintaxe do HPascal. Pedacos da arvore sao definidos
 -- separadamente, usando construtores /data/. 
 --
--- Esta árvore não tem como objetivo ser construída
--- /na mão/, e sim pelo parser em "Parsing".
+-- Esta arvore nao tem como objetivo ser construida
+-- /na mao/, e sim pelo parser em "Parsing".
 --
--- Note que as definições contidas aqui são semelhantes à
--- gramática presente na documentação final do /HPascal/.
+-- Note que as definicoes contidas aqui sao semelhantes a
+-- gramatica presente na documentacao final do /HPascal/.
 
 module Language where
 
@@ -14,32 +14,32 @@ module Language where
 -- * Programa
 
 
--- |Raiz da árvore, representa um programa inteiro 
+-- |Raiz da arvore, representa um programa inteiro 
 data Program = Program Identifier Block
  deriving (Show)
 
 
--- * Blocos de código
+-- * Blocos de codigo
 
 
--- | Bloco de código. Está presente no escopo principal de um programa
--- assim como em definições de /subrotinas/.
+-- | Bloco de codigo. Esta presente no escopo principal de um programa
+-- assim como em definicoes de /subrotinas/.
 --
--- Contêm uma seção de declarações e um 'Statement' (Na verdade, é
+-- Contem uma secao de declaracoes e um 'Statement' (Na verdade, e
 -- obrigatoriamente um 'CompoundStatement')
 data Block = Block DeclarationPart Statement
  deriving (Show)
 
 
--- | Seção de declarações de um 'Block'. Por enquanto, contendo somente
--- uma lista de declarações de variáveis ('VariableDeclaration'), podendo
+-- | Secao de declaracoes de um 'Block'. Por enquanto, contendo somente
+-- uma lista de declaracoes de variaveis ('VariableDeclaration'), podendo
 -- ser vazia.
 data DeclarationPart =
   DeclPart [VariableDeclaration]
  deriving (Show)
 
 
--- | Declaração de variáveis de um mesmo tipo. 
+-- | Declaracao de variaveis de um mesmo tipo. 
 data VariableDeclaration = VarDec [Identifier] TypeDefinition
  deriving (Show)
 
@@ -47,23 +47,23 @@ data VariableDeclaration = VarDec [Identifier] TypeDefinition
 -- * Comandos
 
 
--- | Representação interna dos comandos aceitos pela linguagem. Um
--- 'Statement' representa um bloco mínimo de execução de código.
+-- | Representacao interna dos comandos aceitos pela linguagem. Um
+-- 'Statement' representa um bloco minimo de execucao de codigo.
 data Statement =
     Compound [Statement]                       -- ^ Sequenciamento de comandos
-  | Assignment VariableReference AssignOp Expr -- ^ Atribuição
+  | Assignment VariableReference AssignOp Expr -- ^ Atribuicao
  deriving (Show)
 
 
--- * Expressões
+-- * Expressoes
 
 
--- |Expressões aceitas pela linguagem.
+-- |Expressoes aceitas pela linguagem.
 -- Faz uso de construtores prefixos e infixos para melhorar
--- a legibilidade dos casamentos de padrão.
+-- a legibilidade dos casamentos de padrao.
 --
--- Os operadores (construtores binários) são apresentados aqui
--- na ordem de precedência da linguagem (menor à maior)
+-- Os operadores (construtores binarios) sao apresentados aqui
+-- na ordem de precedencia da linguagem (menor a maior)
 data Expr = 
    Expr :<: Expr         -- ^ Menor que
  | Expr :>: Expr         -- ^ Maior que
@@ -74,26 +74,26 @@ data Expr =
  | Expr `In` Expr        -- ^ Contido em
  
  | Expr :+: Expr         -- ^ Soma
- | Expr :-: Expr         -- ^ Subtração
- | Expr `Or` Expr        -- ^ Ou lógico / booleano
- | Expr `Xor` Expr       -- ^ Xor lógico / booleano
+ | Expr :-: Expr         -- ^ Subtracao
+ | Expr `Or` Expr        -- ^ Ou logico / booleano
+ | Expr `Xor` Expr       -- ^ Xor logico / booleano
  
- | Expr :*: Expr         -- ^ Multiplicação
- | Expr :/: Expr         -- ^ Divisão (sempre retorna /real/)
- | Expr `Div` Expr       -- ^ Divisão inteira
- | Expr `Mod` Expr       -- ^ Módulo entre inteiros
- | Expr `And` Expr       -- ^ And lógico / booleano
- | Expr `Shl` Expr       -- ^ Deslocamento binário à esquerda
- | Expr `Shr` Expr       -- ^ Deslocamento binário à direita
+ | Expr :*: Expr         -- ^ Multiplicacao
+ | Expr :/: Expr         -- ^ Divisao (sempre retorna /real/)
+ | Expr `Div` Expr       -- ^ Divisao inteira
+ | Expr `Mod` Expr       -- ^ Modulo entre inteiros
+ | Expr `And` Expr       -- ^ And logico / booleano
+ | Expr `Shl` Expr       -- ^ Deslocamento binario a esquerda
+ | Expr `Shr` Expr       -- ^ Deslocamento binario a direita
  
- | Expr :**: Expr        -- ^ Exponenciação
+ | Expr :**: Expr        -- ^ Exponenciacao
  
- | Not Expr              -- ^ Negação booleana
- | Minus Expr            -- ^ Menos unário
+ | Not Expr              -- ^ Negacao booleana
+ | Minus Expr            -- ^ Menos unario
  
  | ConstNum Number       -- ^ Número literal
  | ConstBool Boolean     -- ^ Booleano literal
- | Var VariableReference -- ^ Referência à variável
+ | Var VariableReference -- ^ Referencia a variavel
  deriving (Show)
 
 
@@ -107,17 +107,17 @@ type Number = Int
 -- | Booleano literal
 type Boolean = Bool
 
--- | Operador de atribuição ('Assignment').
+-- | Operador de atribuicao ('Assignment').
 -- Pode ser: "+=", "-=", ":=", "/=", "*="
 type AssignOp = String
 
 -- | Identificador presente no programa
 type Identifier = String
 
--- | Definição de tipo.
--- Por enquanto só como um 'Identifier' normal
+-- | Definicao de tipo.
+-- Por enquanto so como um 'Identifier' normal
 type TypeDefinition = String
 
--- | Referência para variável.
--- Por enquanto só como um 'Identifier' normal 
+-- | Referencia para variavel.
+-- Por enquanto so como um 'Identifier' normal 
 type VariableReference = Identifier

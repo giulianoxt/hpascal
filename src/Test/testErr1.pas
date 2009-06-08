@@ -8,7 +8,7 @@
 program Test;
 var
   x, y : integer2;
-  z : boolean2;
+  z, x : boolean;
 begin
   x := 2;
   x += (x + 1) {- comentario -} div 3;

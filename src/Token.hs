@@ -1,4 +1,4 @@
--- Definições dos parsers para os 
+-- | Definicoes dos parsers para os 
 -- diversos lexemas do HPascal
 -- usa as facilidades providas pelo Parsec.Token
 module Token where
@@ -39,13 +39,13 @@ lexer :: T.TokenParser ParserState
 lexer = T.makeTokenParser hPascalDef
 
 
--- * Parsers básicos
+-- * Parsers basicos
 
 
--- ** Whitespace e símbolos
+-- ** Whitespace e simbolos
 
 
--- | Lexema, não atômico
+-- | Lexema, nao atomico
 symbol     :: String -> HParser String
 symbol     = T.symbol lexer
 
@@ -53,18 +53,18 @@ symbol     = T.symbol lexer
 lexeme     :: HParser a -> HParser a
 lexeme     = T.lexeme lexer
 
--- | Espaços em  branco e comentários
+-- | Espacos em  branco e comentarios
 whiteSpace :: HParser ()
 whiteSpace = T.whiteSpace lexer
 
 
 -- ** Identificadores e palavras reservadas
 
--- | Atômico, checa se não é seguido por mais letras
+-- | Atomico, checa se nao e seguido por mais letras
 reserved   :: String -> HParser ()
 reserved   = T.reserved lexer
 
--- | Identificador, checa se não é uma palavra reservada
+-- | Identificador, checa se nao e uma palavra reservada
 identifier :: HParser Identifier 
 identifier = T.identifier lexer <?> "identifier"
 
@@ -73,13 +73,13 @@ reservedOp :: String -> HParser ()
 reservedOp = T.reservedOp lexer
 
 
--- ** Char, strings e números
+-- ** Char, strings e numeros
 
 -- | @'\n'@
 charLiteral   :: HParser Char
 charLiteral   = T.charLiteral lexer
 
--- | @"hasuhau\\ops\n\""@
+-- | @"\hasuhau\\ops\n\""@
 stringLiteral :: HParser String
 stringLiteral = T.stringLiteral lexer
 

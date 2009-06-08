@@ -1,5 +1,5 @@
--- | Módulo principal do interpretador HPascal.
--- Responsável pelas ações baixo nível, presentes na Monad IO.
+-- | Modulo principal do interpretador HPascal.
+-- Responsavel pelas acões baixo nivel, presentes na Monad IO.
 
 module Main where
 
@@ -12,9 +12,9 @@ import System.Exit (exitFailure)
 import System.FilePath (takeFileName)
 
 
--- | Responsável pela interface com o sistema externo.
--- Abre um arquivo com código fonte e o interpreta, eventualmente
--- mostrando resultados na saída padrão.
+-- | Responsavel pela interface com o sistema externo.
+-- Abre um arquivo com codigo fonte e o interpreta, eventualmente
+-- mostrando resultados na saida padrão.
 main :: IO ()
 main = 
   do putStrLn "HPascal interpreter v0.1\n"

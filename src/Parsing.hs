@@ -1,10 +1,10 @@
 -- | Parser completo do HPascal
--- Montado com base na biblioteca Parsec, é um parser
--- combinatório, monádico.
+-- Montado com base na biblioteca Parsec, e um parser
+-- combinatorio, monadico.
 -- 
--- O parser principal é o 'hparser', que faz uso de
+-- O parser principal e o 'hparser', que faz uso de
 -- todos os parsers abaixo. Cada parser reconhece parte
--- do input, e retorna um pedaço da árvore do programa 
+-- do input, e retorna um pedaco da arvore do programa 
 
 module Parsing where
 
@@ -19,7 +19,7 @@ import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Expr
 
 
--- | Parser principal. Retorna a árvore de parsing
+-- | Parser principal. Retorna a arvore de parsing
 -- junto com o estado final do parser.
 hparser :: HParser (Program, ParserState)
 hparser = do Tk.whiteSpace
@@ -40,8 +40,8 @@ program =
      return (Program i b)
 
 
--- | Reconhece um bloco de código ('Block'), contendo declarações
--- e uma sequência de statements.
+-- | Reconhece um bloco de codigo ('Block'), contendo declaracoes
+-- e uma sequencia de statements.
 block :: HParser Block
 block = 
   do decl <- declarations
@@ -49,26 +49,26 @@ block =
      return (Block decl stat)
 
 
--- | Seção de declarações. É composta de várias sub-seções,
--- começando com keywords e contendo uma outra lista de declarações.
+-- | Secao de declaracoes. E composta de varias sub-secoes,
+-- comecando com keywords e contendo uma outra lista de declaracoes.
 declarations :: HParser DeclarationPart
 declarations =
   do varL <- optSection "var" varDeclaration 
      return (DeclPart varL)
 
- where -- | Recebe uma palavra chave e um parser para uma declaração,
-       -- e monta um parser para uma seção de declarações (possivelmente
+ where -- | Recebe uma palavra chave e um parser para uma declaracao,
+       -- e monta um parser para uma secao de declaracoes (possivelmente
        -- vazia).
        optSection :: String -> HParser a -> HParser [a]
        optSection keyword p =
         (Tk.reserved keyword >> Tk.semiSep1 p) <|> (return [])
 
 
--- | Declaração de uma variável. Reconhece uma lista de identificadores
--- seguida de um tipo. Após montar o trecho da árvore ('VarDec')
+-- | Declaracao de uma variavel. Reconhece uma lista de identificadores
+-- seguida de um tipo. Apos montar o trecho da arvore ('VarDec')
 --
--- Após montar o trecho da árvore com 'VarDec', chama 'processVarDecl'
--- para processar a seção de declarações (atualizar tabela de símbolos,
+-- Apos montar o trecho da arvore com 'VarDec', chama 'processVarDecl'
+-- para processar a secao de declaracoes (atualizar tabela de simbolos,
 -- reportar erros, etc.)
 varDeclaration :: HParser VariableDeclaration
 varDeclaration =
@@ -89,9 +89,9 @@ statement =
  <?> "statement"
 
 
--- | Atribuições. Reconhece atribuições simples
--- e compostas, com expressões do lado direito e 
--- referências para variáveis do lado esquerdo.
+-- | Atribuicoes. Reconhece atribuicoes simples
+-- e compostas, com expressoes do lado direito e 
+-- referencias para variaveis do lado esquerdo.
 assignmentStmt :: HParser Statement
 assignmentStmt =
   do varRef <- variableReference
@@ -116,19 +116,19 @@ compoundStmt =
        stmtSeq = Tk.semiSep1 statement
 
 
--- | Referência para variável, por enquanto só um identifier.
+-- | Referencia para variavel, por enquanto so um identifier.
 variableReference :: HParser Identifier
 variableReference = Tk.identifier
 
 
--- | Parser completo de expressões, construído utilizando o
+-- | Parser completo de expressoes, construido utilizando o
 -- 'buildExpressionParser'. 
 expression :: HParser Expr
 expression = buildExpressionParser operators simpleExpr
 
 
 -- | Tabela de operadores para o 'buildExpressionParser',
--- em ordem precedência e com informações de associatividade
+-- em ordem precedencia e com informacoes de associatividade
 operators :: [[Operator Char ParserState Expr]]
 operators =
   [ [Infix (parseOp "**" (:**:)) AssocRight],
@@ -155,7 +155,7 @@ operators =
        literal = isLetter . head
 
 
--- | Parser para expressões simples (sem operadores) 
+-- | Parser para expressoes simples (sem operadores) 
 simpleExpr :: HParser Expr
 simpleExpr = 
      constBoolean
