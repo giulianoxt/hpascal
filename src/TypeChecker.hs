@@ -1,72 +1,55 @@
--- Modulo contendo funçoes que modificam
--- o estado interno da monad do parser, montando
--- a tabela de simbolos e de tipos
+-- | Contêm funções responsáveis pelas checagens de semântica
+-- estática de um programa HPascal.
+--
+-- Inclui checagem de tipos, definição de tipos inválida,
+-- re-definição de identificadores, identificadores desconhecidos, etc.
 
 module TypeChecker where
 
 import Language
-import SymbolTable
-import ParserRun (HParser)
+import ParsingState
 
-import Control.Monad (forM_, liftM)
-import Data.Map (insert, lookup, Map)
-import Text.ParserCombinators.Parsec
+import Data.Map
+import Control.Monad (forM_)
 
 
--- Retorna a tabela de simbolos no estado do parser
-symT :: HParser SymbolTable
-symT  = liftM fst getState
-
-
--- Retorna a tabela de tipos no estado do parser
-typeT :: HParser TypeTable
-typeT = liftM snd getState
-
-
--- Atualiza a tabela de simbolos interna atraves de f
-updateSymT :: (SymbolTable -> SymbolTable) -> HParser ()
-updateSymT f = updateState (\(st,tt) -> (f st, tt))
-
-
--- Atualiza a tabela de tipos interna atraves de f
-updateTypeT :: (TypeTable -> TypeTable) -> HParser ()
-updateTypeT f = updateState (\(st,tt) -> (st, f tt))
-
-
--- Processa um bloco de declaracoes (ja parseado)
--- atualizando as tabelas internas
-processDeclPart :: DeclarationPart -> HParser()
-processDeclPart (DeclPart vds) = forM_ vds processVarDecl
-
-
--- Processa uma declaracao de variavel
+-- | Parser responsável por processar uma declaraçao de
+-- variável ('VariableDeclaration').
+-- 
+-- Resolve o tipo de variável para um tipo concreto e 
+-- chama 'insertSymbol' para inserí-la na tabela interna
 processVarDecl :: VariableDeclaration -> HParser ()
 processVarDecl (VarDec idl typeD) =
-  forM_ idl $ \varId ->
-    do typeV <- getType typeD
-       updateSymT $ insert varId (defaultV typeV, typeD)
+  do typeV <- getType typeD
+     forM_ idl $ \varId -> insertSymbol varId typeV
 
 
--- Retorna o valor concreto de tipo (Type) relativo
--- a um identificador de tipo (TypeDefinition)
--- faz um lookup na tabela interna
+-- | Retorna o valor concreto de tipo ('Type') relativo
+-- a um identificador de tipo ('TypeDefinition').
+--
+-- Faz um lookup na tabela interna. Caso o tipo ainda não
+-- tenha sido definido, retorna um UnknownType e loga o erro
+-- no estado interno do parser.
 getType :: TypeDefinition -> HParser Type
-getType typeD = do
-  tTable <- typeT
-  case mlookup typeD tTable of
-    Just t  -> return t
-    Nothing -> typeCheckFail $ "Unknown type: " ++ typeD
+getType typeD =
+  do tTable <- getTypeT
+     case mlookup typeD tTable of
+      Just t  -> return t
+      Nothing -> do logError (UnknownIdentifier typeD)
+                    return UnknownType
 
 
-typeCheckFail :: String -> HParser a
-typeCheckFail msg =
-  do inp <- getInput
-     setInput ('x' : inp)
-     anyToken
-     fail msg
+-- | Dado um par (identificador, tipo), tenta inserí-lo
+-- na tabela de símbolos (usando 'updateSymT'), logando um erro
+-- caso o símbolo já esteja presente lá.
+insertSymbol :: Identifier -> Type -> HParser ()
+insertSymbol symId typeV =
+  do symTable <- getSymT
+     case mlookup symId symTable of
+      Nothing -> updateSymT symId typeV
+      Just _  -> logError (IdentifierAlreadyUsed symId)
 
 
--- Lookup num Map
+-- | Lookup num Map
 mlookup :: (Ord k) => k -> Map k a -> Maybe a
 mlookup = Data.Map.lookup
-

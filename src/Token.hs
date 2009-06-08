@@ -4,7 +4,7 @@
 module Token where
 
 import Language
-import ParserRun
+import ParsingState (HParser, ParserState)
 
 import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Language
@@ -39,85 +39,104 @@ lexer :: T.TokenParser ParserState
 lexer = T.makeTokenParser hPascalDef
 
 
--- # Parsers básicos #
+-- * Parsers básicos
 
 
--- whitespace e símbolos
+-- ** Whitespace e símbolos
 
+
+-- | Lexema, não atômico
 symbol     :: String -> HParser String
-symbol     = T.symbol lexer          -- lexema, nao atomico
+symbol     = T.symbol lexer
 
+-- | Para montar lexemas 
 lexeme     :: HParser a -> HParser a
-lexeme     = T.lexeme lexer              -- pra montar lexemas
+lexeme     = T.lexeme lexer
 
+-- | Espaços em  branco e comentários
 whiteSpace :: HParser ()
-whiteSpace = T.whiteSpace lexer      -- espaços em branco e comentarios
+whiteSpace = T.whiteSpace lexer
 
 
--- identificadores e palavras reservadas
+-- ** Identificadores e palavras reservadas
 
+-- | Atômico, checa se não é seguido por mais letras
 reserved   :: String -> HParser ()
-reserved   = T.reserved lexer    -- atomico, checa se n é seguido por mais letras
+reserved   = T.reserved lexer
 
-identifier :: HParser Identifier -- checa se nao é uma palavra reservada
---identifier = Identifier `liftM` (T.identifier lexer)  
+-- | Identificador, checa se não é uma palavra reservada
+identifier :: HParser Identifier 
 identifier = T.identifier lexer <?> "identifier"
 
+-- | Operador reservado
 reservedOp :: String -> HParser ()
 reservedOp = T.reservedOp lexer
 
 
--- char e strings
+-- ** Char, strings e números
 
+-- | @'\n'@
 charLiteral   :: HParser Char
-charLiteral   = T.charLiteral lexer    -- '\n'
+charLiteral   = T.charLiteral lexer
 
+-- | @"hasuhau\\ops\n\""@
 stringLiteral :: HParser String
-stringLiteral = T.stringLiteral lexer  -- "hasuhau\\ops\n\""
+stringLiteral = T.stringLiteral lexer
 
 
--- numbers
-
+-- | Inteiros ou floats, sem sinal
 number :: HParser (Either Integer Double)
 number = T.naturalOrFloat lexer
 
 
--- Agrupamento
+-- * Parsers de agrupamento
 
+-- | ( p )
 parens    :: HParser a -> HParser a
-parens    = T.parens lexer       -- ( p )
+parens    = T.parens lexer
 
+-- | [ p ]
 brackets  :: HParser a -> HParser a
-brackets  = T.brackets lexer     -- [ p ]
+brackets  = T.brackets lexer
 
+-- | ;
 semi      :: HParser String
-semi      = T.semi lexer         -- ;
+semi      = T.semi lexer
 
+-- | ,
 comma     :: HParser String
-comma     = T.comma lexer        -- ,
+comma     = T.comma lexer
 
+-- | .
 dot       :: HParser String
-dot       = T.dot lexer          -- .
+dot       = T.dot lexer
 
+-- | :
 colon     :: HParser String
-colon     = T.colon lexer        -- :
+colon     = T.colon lexer
 
+-- | [p {, p}]
 commaSep  :: HParser a -> HParser [a]
-commaSep  = T.commaSep lexer     -- [p {, p}]
+commaSep  = T.commaSep lexer
 
+-- | [p {; p}]
 semiSep   :: HParser a -> HParser [a]
-semiSep   = T.semiSep lexer      -- [p {; p}]
+semiSep   = T.semiSep lexer
 
+-- | p {, p}
 commaSep1 :: HParser a -> HParser [a]
-commaSep1 = T.commaSep1 lexer    -- p {, p}
+commaSep1 = T.commaSep1 lexer    
 
+-- | p ; p; ; ;; ; p ;;; p [;;;]
 semiSep1  :: HParser a -> HParser [a]
-semiSep1 p =                     -- p ; p; ;;;; p ;;;
+semiSep1 p =                     
   do x <- p
      xs <- manysp
      return (x : xs)
-  where manysp = 
-          do many semi
-             ((do x <- try p
-                  xs <- manysp
-                  return (x : xs)) <|> return [])
+  where manysp =
+         (try $ do many1 semi
+                   x <- p
+                   xs <- manysp
+                   return (x : xs))
+         <|>
+         (many semi >> return [])

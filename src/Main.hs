@@ -1,7 +1,10 @@
+-- | Módulo principal do interpretador HPascal.
+-- Responsável pelas ações baixo nível, presentes na Monad IO.
+
 module Main where
 
-import Parsing (hparser)
-import ParserRun (parse, defaultSymbols)
+import ParserRun (parse)
+import ParsingState (compErrors, ParserState)
 
 import System (getArgs)
 import Control.Monad (when)
@@ -9,6 +12,9 @@ import System.Exit (exitFailure)
 import System.FilePath (takeFileName)
 
 
+-- | Responsável pela interface com o sistema externo.
+-- Abre um arquivo com código fonte e o interpreta, eventualmente
+-- mostrando resultados na saída padrão.
 main :: IO ()
 main = 
   do putStrLn "HPascal interpreter v0.1\n"
@@ -24,17 +30,21 @@ main =
 
      src <- readFile srcFilePath
  
-     let result = parse hparser defaultSymbols srcName src
+     let result = parse srcName src
  
      showParse result
 
 
-showParse (Left err)   =
-  do putStr "Parse Error:"
+-- | Imprime o resultado do processo de parsing
+showParse :: (Show a, Show b) => Either a (b, ParserState) -> IO ()
+
+showParse (Left err) =
+  do putStrLn "Parse Error:"
      print err
-     
+      
 showParse (Right (tree, state)) = 
   do putStr "Parse tree: "
      print tree
-     putStr "\nFinal Parser State: "
-     print state
+     case compErrors state of
+      Nothing   -> return ()
+      Just errL -> putStrLn ('\n': errL)
