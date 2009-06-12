@@ -6,11 +6,17 @@
 
 module TypeChecker where
 
+import Types
 import Language
 import ParsingState
 
-import Data.Map
-import Control.Monad (forM_)
+import qualified Data.Map as M
+import Control.Monad (forM_, when)
+
+
+-- | Lookup num Map
+mlookup :: (Ord k) => k -> M.Map k a -> Maybe a
+mlookup = M.lookup
 
 
 -- | Parser responsavel por processar uma declaracao de
@@ -50,6 +56,81 @@ insertSymbol symId typeV =
       Just _  -> logError (IdentifierAlreadyUsed symId)
 
 
--- | Lookup num Map
-mlookup :: (Ord k) => k -> Map k a -> Maybe a
-mlookup = Data.Map.lookup
+processAssignment :: Statement -> HParser ()
+processAssignment (Assignment varRef _ e) =
+  do te <- infer e
+     tv <- getVarType varRef
+     when (te /= tv && te /= UnknownType && tv /= UnknownType) $ do
+       let msg = TypeError $ "Expecting " ++ show tv ++ ", got " ++ show te
+       logError msg
+
+
+getVarType :: VariableReference -> HParser Type
+getVarType varId = 
+  do sTable <- getSymT
+     case mlookup varId sTable of
+      Just t  -> return t
+      Nothing -> do logError (UnknownIdentifier varId)
+                    return UnknownType
+
+
+infer :: Expr -> HParser Type
+infer e =
+ case e of
+  ConstNum  _ -> return IntegerT
+  ConstBool _ -> return BooleanT
+  Var varId   -> getVarType varId
+  
+  Minus e1    -> unaryInf cNumOp1  e1
+  Not e1      -> unaryInf cBoolOp1 e1
+  
+  e1 :*: e2   -> binaryInf cNumOp2 e1 e2
+  e1 :-: e2   -> binaryInf cNumOp2 e1 e2
+  e1 :+: e2   -> binaryInf cNumOp2 e1 e2
+  e1 :/: e2   -> binaryInf cNumOp2 e1 e2
+  
+  e1 :<>: e2  -> binaryInf cEqOp2 e1 e2
+  e1 :>=: e2  -> binaryInf cRelOp2 e1 e2
+  e1 :<=: e2  -> binaryInf cRelOp2 e1 e2
+  e1 :=: e2   -> binaryInf cEqOp2 e1 e2
+  e1 :>: e2   -> binaryInf cRelOp2 e1 e2
+  e1 :<: e2   -> binaryInf cRelOp2 e1 e2
+  _ `In` _    -> undefined
+  
+  e1 :**: e2  -> binaryInf cNumOp2 e1 e2
+  e1 `Shr` e2 -> binaryInf cNumOp2 e1 e2
+  e1 `Shl` e2 -> binaryInf cNumOp2 e1 e2
+  e1 `And` e2 -> binaryInf cBoolOp2 e1 e2
+  e1 `Xor` e2 -> binaryInf cBoolOp2 e1 e2
+  e1 `Or` e2  -> binaryInf cBoolOp2 e1 e2
+  e1 `Mod` e2 -> binaryInf cNumOp2 e1 e2
+  e1 `Div` e2 -> binaryInf cNumOp2 e1 e2
+ 
+ where
+  unaryInf  :: UnaryCoercion
+            -> Expr
+            -> HParser Type
+  unaryInf coerce e' = do
+    t <- infer e'
+    if t == UnknownType then
+      return UnknownType
+     else
+      returnCoerce (coerce t)
+
+  binaryInf :: BinaryCoercion
+            -> Expr
+            -> Expr
+            -> HParser Type
+  binaryInf coerce e1 e2 = do
+    t1 <- infer e1
+    t2 <- infer e2
+    if (t1 == UnknownType || t2 == UnknownType) then
+      return UnknownType
+     else
+      returnCoerce (coerce t1 t2)
+
+  returnCoerce :: CoerceResult -> HParser Type
+  returnCoerce cr = case cr of
+    Right t  -> return t
+    Left msg -> do logError $ TypeError msg
+                   return UnknownType

@@ -7,7 +7,7 @@ import ParsingState (initialState, ParserState)
 import Text.ParserCombinators.Parsec hiding(parse)
 
 
--- | Funcao para execução do parser principal do HPascal
+-- | Funcao para execucao do parser principal do HPascal
 parse :: SourceName                                -- ^ Nome do arquivo do codigo
       -> String                                    -- ^ Codigo
       -> Either ParseError (Program, ParserState)  -- ^ Erro ou arvore de parsing e estado final

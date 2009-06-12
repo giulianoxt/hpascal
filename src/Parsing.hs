@@ -24,6 +24,7 @@ import Text.ParserCombinators.Parsec.Expr
 hparser :: HParser (Program, ParserState)
 hparser = do Tk.whiteSpace
              p <- program
+             eof
              st <- getState
              return (p, st)
 
@@ -97,7 +98,9 @@ assignmentStmt =
   do varRef <- variableReference
      op     <- assignOp
      expr   <- expression
-     return (Assignment varRef op expr)
+     let assign = Assignment varRef op expr 
+     processAssignment assign
+     return assign
  where assignOp :: HParser String
        assignOp = do op <- oneOf ":+-*/"
                      eq <- Tk.symbol "="
@@ -173,7 +176,7 @@ constBoolean =
      return (ConstBool b)
 
 
--- | Número literal
+-- | Numero literal
 constNumber :: HParser Expr
 constNumber =
    do Left n <- Tk.number

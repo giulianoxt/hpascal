@@ -10,6 +10,7 @@
 
 module ParsingState where
 
+import Types
 import Language
 
 import Control.Monad (liftM)
@@ -59,19 +60,7 @@ type TypeTable   = Map Identifier Type
 type SymbolTable = Map Identifier Type
 
 
--- | Tipo variante em Haskell usado para representar os tipos
--- concretos presentes em programas HPascal
---
--- O tipo indefinido ('UnknownType') e utilizado quando a declaracao
--- da variavel contem um tipo ilegal (ex: var x : TipoNaoDefinido;).
---
--- Assim, podemos continuar o processo de parsing e analise, possivelmente
--- encontrando mais erros, em vez de parar na primeira ocorrencia.
-data Type = 
-   IntegerT     -- ^ Inteiro
- | BooleanT     -- ^ Booleano
- | UnknownType  -- ^ Tipo indefinido
- deriving (Show)
+
 
 
 -- | Um unico erro de compilacao.
