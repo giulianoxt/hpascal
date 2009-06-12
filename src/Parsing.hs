@@ -58,8 +58,7 @@ declarations =
      return (DeclPart varL)
 
  where -- | Recebe uma palavra chave e um parser para uma declaracao,
-       -- e monta um parser para uma secao de declaracoes (possivelmente
-       -- vazia).
+       -- e monta um parser para uma secao opcional de declaracoes
        optSection :: String -> HParser a -> HParser [a]
        optSection keyword p =
         (Tk.reserved keyword >> Tk.semiSep1 p) <|> (return [])

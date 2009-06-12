@@ -10,8 +10,8 @@ import Types
 import Language
 import ParsingState
 
+import Control.Monad (forM_)
 import qualified Data.Map as M
-import Control.Monad (forM_, when)
 
 
 -- | Lookup num Map
@@ -56,15 +56,25 @@ insertSymbol symId typeV =
       Just _  -> logError (IdentifierAlreadyUsed symId)
 
 
+-- | Parser responsavel por processar uma atribuicao.
+--
+-- Infere o tipo da expressao do lado direito e da variavel
+-- do lado esquerdo, para checar compatibilidade de atribuicao.
 processAssignment :: Statement -> HParser ()
-processAssignment (Assignment varRef _ e) =
+processAssignment (Assignment varRef op e) =
   do te <- infer e
      tv <- getVarType varRef
-     when (te /= tv && te /= UnknownType && tv /= UnknownType) $ do
-       let msg = TypeError $ "Expecting " ++ show tv ++ ", got " ++ show te
-       logError msg
+     
+     if (te == UnknownType || tv == UnknownType) then
+       return ()
+      else case cAssign op tv te of
+            Right _  -> return ()
+            Left msg -> logError (TypeError msg)
+processAssignment _ = error "TypeChecker.processAssignment"
 
 
+-- | Dada uma referencia para variavel, retorna o tipo dela.
+-- Loga um erro caso a variavel nao seja encontrada.
 getVarType :: VariableReference -> HParser Type
 getVarType varId = 
   do sTable <- getSymT
@@ -74,6 +84,12 @@ getVarType varId =
                     return UnknownType
 
 
+-- | Funcao que implementa o mecanismo de inferencia de tipos
+-- para expressoes em geral.
+--
+-- Utiliza casamento de padrao sobre a arvore de expressoes e,
+-- para deduzir as coercoes, utiliza as funcoes exportadas pelo
+-- modulo 'Types'. 
 infer :: Expr -> HParser Type
 infer e =
  case e of
@@ -107,6 +123,11 @@ infer e =
   e1 `Div` e2 -> binaryInf cNumOp2 e1 e2
  
  where
+  -- As funcoes abaixo encapsulam os metodos de coercao
+  -- exportados pelo modulo 'Types', adicionando:
+  --  - Propagacao de tipos indefinidos pela recursao
+  --  - Log de erros na checagem de tipos
+ 
   unaryInf  :: UnaryCoercion
             -> Expr
             -> HParser Type
