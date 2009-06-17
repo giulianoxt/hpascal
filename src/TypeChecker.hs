@@ -10,13 +10,10 @@ import Types
 import Language
 import ParsingState
 
+import Data.Map (lookup)
+import Prelude hiding (lookup)
+
 import Control.Monad (forM_)
-import qualified Data.Map as M
-
-
--- | Lookup num Map
-mlookup :: (Ord k) => k -> M.Map k a -> Maybe a
-mlookup = M.lookup
 
 
 -- | Parser responsavel por processar uma declaracao de
@@ -25,24 +22,14 @@ mlookup = M.lookup
 -- Resolve o tipo de variavel para um tipo concreto e 
 -- chama 'insertSymbol' para inseri-la na tabela interna
 processVarDecl :: VariableDeclaration -> HParser ()
-processVarDecl (VarDec idl typeD) =
-  do typeV <- getType typeD
-     forM_ idl $ \varId -> insertSymbol varId typeV
-
-
--- | Retorna o valor concreto de tipo ('Type') relativo
--- a um identificador de tipo ('TypeDefinition').
---
--- Faz um lookup na tabela interna. Caso o tipo ainda nao
--- tenha sido definido, retorna um UnknownType e loga o erro
--- no estado interno do parser.
-getType :: TypeDefinition -> HParser Type
-getType typeD =
-  do tTable <- getTypeT
-     case mlookup typeD tTable of
-      Just t  -> return t
-      Nothing -> do logError (UnknownIdentifier typeD)
-                    return UnknownType
+processVarDecl (VarDec (_:_:_) _ (Just _)) =
+  logError MultipleInitialization
+processVarDecl (VarDec idl typeV mexpr) =
+  forM_ idl $ \varId ->
+    do insertSymbol varId typeV
+       case mexpr of
+        Just e  -> processAssignment (Assignment ":=" varId e)
+        Nothing -> return ()
 
 
 -- | Dado um par (identificador, tipo), tenta inseri-lo
@@ -51,7 +38,7 @@ getType typeD =
 insertSymbol :: Identifier -> Type -> HParser ()
 insertSymbol symId typeV =
   do symTable <- getSymT
-     case mlookup symId symTable of
+     case lookup symId symTable of
       Nothing -> updateSymT symId typeV
       Just _  -> logError (IdentifierAlreadyUsed symId)
 
@@ -61,7 +48,7 @@ insertSymbol symId typeV =
 -- Infere o tipo da expressao do lado direito e da variavel
 -- do lado esquerdo, para checar compatibilidade de atribuicao.
 processAssignment :: Statement -> HParser ()
-processAssignment (Assignment varRef op e) =
+processAssignment (Assignment op varRef e) =
   do te <- infer e
      tv <- getVarType varRef
      
@@ -78,10 +65,33 @@ processAssignment _ = error "TypeChecker.processAssignment"
 getVarType :: VariableReference -> HParser Type
 getVarType varId = 
   do sTable <- getSymT
-     case mlookup varId sTable of
+     case lookup varId sTable of
       Just t  -> return t
       Nothing -> do logError (UnknownIdentifier varId)
                     return UnknownType
+
+
+getTypeVal :: Identifier -> HParser Type
+getTypeVal typeId =
+  do tTable <- getTypeT
+     case lookup typeId tTable of
+      Just t  -> return t
+      Nothing -> do logError (UnknownIdentifier typeId)
+                    return UnknownType
+
+
+processBooleanExpr :: Expr -> HParser ()
+processBooleanExpr = checkExprType BooleanT
+
+checkExprType :: Type -> Expr -> HParser ()
+checkExprType typeV expr =
+  do eT <- infer expr
+     check eT typeV
+ where check e1 e2
+        | elem e1 [UnknownType,e2] = return ()
+        | otherwise = logError $ TypeError $
+            "Expecting " ++ show typeV ++ " but inferred "
+                         ++ show e2    ++ " for expression"       
 
 
 -- | Funcao que implementa o mecanismo de inferencia de tipos
@@ -93,8 +103,7 @@ getVarType varId =
 infer :: Expr -> HParser Type
 infer e =
  case e of
-  ConstNum  _ -> return IntegerT
-  ConstBool _ -> return BooleanT
+  ConstExpr c -> constInf c
   Var varId   -> getVarType varId
   
   Minus e1    -> unaryInf cNumOp1  e1
@@ -122,36 +131,40 @@ infer e =
   e1 `Mod` e2 -> binaryInf cNumOp2 e1 e2
   e1 `Div` e2 -> binaryInf cNumOp2 e1 e2
  
- where
-  -- As funcoes abaixo encapsulam os metodos de coercao
-  -- exportados pelo modulo 'Types', adicionando:
-  --  - Propagacao de tipos indefinidos pela recursao
-  --  - Log de erros na checagem de tipos
+-- As funcoes abaixo encapsulam os metodos de coercao
+-- exportados pelo modulo 'Types', adicionando:
+--  - Propagacao de tipos indefinidos pela recursao
+--  - Log de erros na checagem de tipos
  
-  unaryInf  :: UnaryCoercion
-            -> Expr
-            -> HParser Type
-  unaryInf coerce e' = do
-    t <- infer e'
-    if t == UnknownType then
-      return UnknownType
-     else
-      returnCoerce (coerce t)
+constInf :: Constant -> HParser Type
+constInf (ConstNum  _) = return IntegerT
+constInf (ConstBool _) = return BooleanT
+constInf _             = error "TypeChecker.constInf"
 
-  binaryInf :: BinaryCoercion
-            -> Expr
-            -> Expr
-            -> HParser Type
-  binaryInf coerce e1 e2 = do
-    t1 <- infer e1
-    t2 <- infer e2
-    if (t1 == UnknownType || t2 == UnknownType) then
-      return UnknownType
-     else
-      returnCoerce (coerce t1 t2)
+unaryInf  :: UnaryCoercion
+          -> Expr
+          -> HParser Type
+unaryInf coerce e' = do
+  t <- infer e'
+  if t == UnknownType then
+     return UnknownType
+    else
+     returnCoerce (coerce t)
 
-  returnCoerce :: CoerceResult -> HParser Type
-  returnCoerce cr = case cr of
-    Right t  -> return t
-    Left msg -> do logError $ TypeError msg
-                   return UnknownType
+binaryInf :: BinaryCoercion
+          -> Expr
+          -> Expr
+          -> HParser Type
+binaryInf coerce e1 e2 = do
+  t1 <- infer e1
+  t2 <- infer e2
+  if (t1 == UnknownType || t2 == UnknownType) then
+     return UnknownType
+    else
+     returnCoerce (coerce t1 t2)
+
+returnCoerce :: CoerceResult -> HParser Type
+returnCoerce cr = case cr of
+  Right t  -> return t
+  Left msg -> do logError $ TypeError msg
+                 return UnknownType

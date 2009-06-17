@@ -3,7 +3,7 @@
 
 module Main where
 
-import ParserRun (parse)
+import Parsing (parse)
 import ParsingState (compErrors, ParserState)
 
 import System (getArgs)
@@ -17,7 +17,11 @@ import System.FilePath (takeFileName)
 -- mostrando resultados na saida padrao.
 main :: IO ()
 main = 
-  do putStrLn "HPascal interpreter v0.1\n"
+  do putStrLn " ___________________________________________ "
+     putStrLn "|                                           |"
+     putStrLn "|       HPascal interpreter (DIM0437)       |"
+     putStrLn "|___________________________________________|"
+     putStrLn ""
     
      args <- getArgs
     
@@ -39,11 +43,11 @@ main =
 showParse :: (Show a, Show b) => Either a (b, ParserState) -> IO ()
 
 showParse (Left err) =
-  do putStrLn "Parse Error:"
+  do putStrLn "-> Parse Error:\n"
      print err
       
 showParse (Right (tree, state)) = 
-  do putStr "Parse tree: "
+  do putStr "-> Parse tree:\n\n"
      print tree
      case compErrors state of
       Nothing   -> return ()

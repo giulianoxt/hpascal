@@ -25,9 +25,9 @@ hPascalDef = emptyDef {
       ["absolute", "array", "asm", "begin", "break", "case", "const"
      , "constructor", "continue", "destructor", "do", "downto", "else"
      , "end", "file", "for", "function", "goto", "if", "implementation"
-     , "inherited", "inline", "interface", "label", "nil", "object"
+     , "inherited", "inline", "interface", "label", "nil", "object", "false"
      , "of", "on", "operator", "packed", "procedure", "program", "record"
-     , "reintroduce", "repeat", "self", "set", "string", "then"
+     , "reintroduce", "repeat", "self", "set", "string", "then", "true"
      , "to", "type", "unit", "until", "uses", "var", "while", "with"]
   , reservedOpNames =
       ["@", "+", "-", "*", "/", "div", "mod", "not", "and", "or", "xor"
@@ -119,10 +119,6 @@ colon     = T.colon lexer
 commaSep  :: HParser a -> HParser [a]
 commaSep  = T.commaSep lexer
 
--- | [p {; p}]
-semiSep   :: HParser a -> HParser [a]
-semiSep   = T.semiSep lexer
-
 -- | p {, p}
 commaSep1 :: HParser a -> HParser [a]
 commaSep1 = T.commaSep1 lexer    
@@ -140,3 +136,6 @@ semiSep1 p =
                    return (x : xs))
          <|>
          (many semi >> return [])
+
+semiSep :: HParser a -> HParser [a]
+semiSep p = option [] (semiSep1 p)

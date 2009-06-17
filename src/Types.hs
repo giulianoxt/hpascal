@@ -87,19 +87,19 @@ cBoolOp1 t        = fail "a boolean type" t
 cNumOp2  :: BinaryCoercion
 cNumOp2 t1 t2 = case (t1, t2) of
   (IntegerT, IntegerT) -> suceed IntegerT
-  _                    -> fail "two numeric types" (t1,t2)
+  _                    -> fail "two numeric types on operation" (t1,t2)
 
 
 -- | Operador booleano binario normal (ex: and, or)
 cBoolOp2 :: BinaryCoercion
 cBoolOp2 BooleanT BooleanT = suceed BooleanT
-cBoolOp2 t1 t2             = fail "two boolean types" (t1, t2)
+cBoolOp2 t1 t2             = fail "two boolean types on operation" (t1, t2)
 
 
 -- | Operador relacional binario normal (ex: <)
 cRelOp2  :: BinaryCoercion
 cRelOp2 IntegerT IntegerT = suceed BooleanT
-cRelOp2 t1 t2             = fail "two boolean types" (t1, t2)
+cRelOp2 t1 t2             = fail "two numeric types" (t1, t2)
 
 
 -- | Operador binario de igualdade
@@ -116,7 +116,6 @@ cAssign ":=" t1 t2
   | t1 == t2  = suceed t1
   | otherwise = fail "two compatible types" (t1, t2)
 cAssign _ t1 t2
-  | isNumeric t1 &&
-    isNumeric t2 &&
-    t1 == t2        = suceed t1
-  | otherwise       = fail "two compatible numeric types" (t1, t2)
+  | all isNumeric [t1,t2] && 
+    t1 == t2  = suceed t1
+  | otherwise = fail "two compatible numeric types" (t1, t2)

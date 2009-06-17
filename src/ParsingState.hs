@@ -74,6 +74,7 @@ data ErrorMsg  =
    TypeError             String  -- ^ Erro de tipo
  | UnknownIdentifier     String  -- ^ Identificador nao reconhecido
  | IdentifierAlreadyUsed String  -- ^ Declaracao dupla de identificador
+ | MultipleInitialization
 
 
 -- | Representacao de um erro de compilacao
@@ -90,6 +91,8 @@ instance Show ErrorMsg where
     "Not in scope: "            ++ quoted msg
   show (IdentifierAlreadyUsed msg) =
     "Identifier already used: " ++ quoted msg
+  show (MultipleInitialization)    =
+    "Invalid multiple variable initialization"
 
 
 -- | Engloba um string em aspas duplas
