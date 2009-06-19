@@ -3,4 +3,5 @@ all:
 
 clean:
 	rm -rf *.hi *.o *~
+	rm -rf ./*/*.hi ./*/*.o ./*/*~
 
