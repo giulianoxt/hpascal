@@ -3,8 +3,8 @@
 
 module Main where
 
-import Parsing (parse)
-import ParsingState (compErrors, ParserState)
+import Parser.HParser (parse)
+import Parser.State (compErrors, ParserState)
 
 import System (getArgs)
 import Control.Monad (when)
