@@ -10,12 +10,13 @@
 
 module Parser.State where
 
-import Language.AST
+import Language.Tables
 import TypeSystem.Types
 
-import Control.Monad (liftM)
 import Data.List (intercalate)
 import Data.Map hiding (null, map)
+import Control.Monad (liftM, liftM2)
+
 import Text.ParserCombinators.Parsec
 
 
@@ -37,30 +38,6 @@ data ParserState = PState {
  , typeT  :: TypeTable      -- ^ Tabela de tipos
  , errors :: [CompError]    -- ^ Lista de erros de compilacao
 } deriving (Show)
-
-
--- | Tabela interna de tipos. Mapeia identificadores para
--- tipos concretos.
---
--- Note que nem todos os tipos utilizados em um programa
--- estarao presentes nessa tabela, pois o HPascal permite
--- declaracao de variaveis com tipos anonimos (sem identificadores).
--- Ex: var x : array (3..5) of string;  
-type TypeTable   = Map Identifier Type
-
-
--- | Tabela geral de simbolos (variaveis, subrotinas, etc.). Mapeia
--- identificadores para os tipos concretos dos simbolos.
---
--- Devido a declaracao com tipos anonimos, nem todos os tipos presentes
--- aqui estarao na tabela 'TypeTable'.
---
--- Nao guardamos o valor atual da variavel, por exemplo, pois as tabelas
--- deste modulo so serao utilizadas durante o parsing.
-type SymbolTable = Map Identifier Type
-
-
-
 
 
 -- | Um unico erro de compilacao.
@@ -117,6 +94,10 @@ getSymT  = symT  `liftM` getState
 -- | Parser utilizado para extrair a tabela de tipos do estado interno
 getTypeT :: HParser TypeTable
 getTypeT = typeT `liftM` getState
+
+
+getStaticData :: HParser StaticData
+getStaticData = liftM2 StaticData getSymT getTypeT
 
 
 -- | Insere o par (identificador, tipo) na tabela de simbolos,

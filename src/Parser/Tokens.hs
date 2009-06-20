@@ -3,7 +3,6 @@
 -- usa as facilidades providas pelo Parsec.Token
 module Parser.Tokens where
 
-import Language.AST
 import Parser.State (HParser, ParserState)
 
 import Text.ParserCombinators.Parsec
@@ -65,7 +64,7 @@ reserved   :: String -> HParser ()
 reserved   = T.reserved lexer
 
 -- | Identificador, checa se nao e uma palavra reservada
-identifier :: HParser Identifier 
+identifier :: HParser String 
 identifier = T.identifier lexer <?> "identifier"
 
 -- | Operador reservado

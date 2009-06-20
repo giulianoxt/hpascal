@@ -10,9 +10,10 @@ module Parser.HParser where
 
 import Language.AST
 import TypeSystem.Checker
-import TypeSystem.Types (Type)
+import TypeSystem.Types (Type, Identifier)
+
+import Parser.State
 import qualified Parser.Tokens as T
-import Parser.State (HParser, ParserState, initialState)
 
 import Data.Char (isLetter)
 import Control.Monad (when, liftM)
@@ -53,19 +54,20 @@ program =
 -- e uma sequencia de statements.
 block :: HParser Block
 block = 
-  do decl <- declarations
-     stmt <- compoundStmt
-     return (Block decl stmt)
+  do decl   <- declarations
+     stmt   <- compoundStmt
+     stData <- getStaticData
+     return (Block decl stmt stData)
 
 
 -- | Secao de declaracoes. E composta de varias sub-secoes,
 -- comecando com keywords e contendo uma outra lista de declaracoes.
 declarations :: HParser DeclarationPart
 declarations =
-  do varL     <- optSection varDeclarations
-     procDecl <- T.semiSep procedureDecl
+  do varL      <- optSection varDeclarations
+     procDecls <- T.semiSep procedureDecl
      
-     return (DeclPart [] [] varL procDecl)
+     return (DeclPart [] [] varL procDecls)
 
  where -- | Recebe um parser para uma declaracao,
        -- e monta um parser para uma secao opcional de declaracoes

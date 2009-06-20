@@ -10,7 +10,8 @@
 
 module Language.AST where
 
-import TypeSystem.Types (Type)
+import Language.Tables
+import TypeSystem.Types (Type, Identifier)
 
 import Data.List (intersperse)
 
@@ -23,7 +24,7 @@ data Program = Program Identifier UsesClause Block
 instance (Show Program) where
   show = showParseTree
 
--- | Importam nomes de funções e variáveis
+-- | Importam nomes de funcoes e variaveis
 -- globais externas para o escopo atual.
 data UsesClause = UsesClause [Identifier]
  deriving (Show)
@@ -32,7 +33,7 @@ data UsesClause = UsesClause [Identifier]
 -- assim como em definicoes de /subrotinas/.
 --
 -- Contem uma secao de declaracoes e um 'CompoundStatement'.
-data Block = Block DeclarationPart Statement
+data Block = Block DeclarationPart Statement StaticData
  deriving (Show)
 
 -- * Declaracoes
@@ -169,9 +170,6 @@ type Number = Int
 -- Pode ser: "+=", "-=", ":=", "/=", "*="
 type AssignOp = String
 
--- | Identificador de variavel presente no programa.
-type Identifier = String
-
 -- | Referencia para variavel.
 -- Por enquanto so como um 'Identifier' normal.
 type VariableReference = Identifier
@@ -184,7 +182,7 @@ showParseTree = showProgram
                    ++ show uses ++ "\n"
                    ++ showBlock 1 block
         
-       showBlock n (Block d st) =
+       showBlock n (Block d st _) =
         pad n ++ "Block" ++
         "\n" ++ showDeclPart (n+1) d ++
         "\n" ++ pad n ++ showStmt (n+1) st

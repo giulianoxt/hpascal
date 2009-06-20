@@ -13,6 +13,9 @@ import Prelude hiding (fail)
 -- * Definicoes de tipos
 
 
+type Identifier = String
+
+
 -- | Tipo variante em Haskell usado para representar os tipos
 -- concretos presentes em programas HPascal
 --
