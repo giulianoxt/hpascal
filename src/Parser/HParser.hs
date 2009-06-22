@@ -24,8 +24,16 @@ import Text.ParserCombinators.Parsec.Expr
 -- | Funcao para execucao do parser principal do HPascal
 parse :: SourceName
       -> String
-      -> Either ParseError (Program, ParserState)
-parse src input = runParser hparser initialState src input
+      -> Either String Program
+parse src input =
+  case result of
+    Left parseErr -> Left ("Parse Error:\n" ++ show parseErr)
+    Right (p, st) -> case compErrors st of
+                      Nothing -> Right p
+                      Just s  -> Left s
+ where
+  result = runParser hparser initialState src input
+  
 
 
 -- | Parser principal. Retorna a arvore de parsing

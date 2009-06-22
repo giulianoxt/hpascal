@@ -1,12 +1,9 @@
-{-
-	testOk
-	- Nenhum erro
--}
+{ TesteOK - 1 }
 
 program Test;
 var
   x, y : integer;
-  z : boolean;
+  z    : boolean;
 begin
   writeln("Contando até 20");
 
@@ -18,6 +15,14 @@ begin
     x := x + 1;
   end;
 
-  writeln("Tah contado boooy");
+  writeln("Tire onda booooyy! hauahuhauha");
+
+  y := x - 1;
+
+  if (y = 20) then
+   writeln("eita")
+  else
+   writeln("opa");
+
 end.
 
