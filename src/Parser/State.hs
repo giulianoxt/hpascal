@@ -13,9 +13,10 @@ module Parser.State where
 import Language.Tables
 import TypeSystem.Types
 
+import Control.Monad (liftM)
+
 import Data.List (intercalate)
 import Data.Map hiding (null, map)
-import Control.Monad (liftM, liftM2)
 
 import Text.ParserCombinators.Parsec
 
@@ -34,9 +35,8 @@ type HParser a = GenParser Char ParserState a
 -- encontrados durante o parsing, para que depois sejam mostrados
 -- ao usuario. 
 data ParserState = PState {
-   symT   :: SymbolTable    -- ^ Tabela de simbolos
- , typeT  :: TypeTable      -- ^ Tabela de tipos
- , errors :: [CompError]    -- ^ Lista de erros de compilacao
+   staticT :: StaticData
+ , errors  :: [CompError]    -- ^ Lista de erros de compilacao
 } deriving (Show)
 
 
@@ -88,32 +88,40 @@ compErrors ps
 
 -- | Parser utilizado para extrair a tabela de simbolos do estado interno
 getSymT  :: HParser SymbolTable
-getSymT  = symT  `liftM` getState
+getSymT  = (fst . staticT) `liftM` getState
 
 
 -- | Parser utilizado para extrair a tabela de tipos do estado interno
 getTypeT :: HParser TypeTable
-getTypeT = typeT `liftM` getState
+getTypeT = (snd . staticT) `liftM` getState
 
 
 getStaticData :: HParser StaticData
-getStaticData = liftM2 StaticData getSymT getTypeT
+getStaticData = staticT `liftM` getState
 
 
 -- | Insere o par (identificador, tipo) na tabela de simbolos,
 -- sem se preocupar se o simbolo ja estava presente
 updateSymT :: Identifier -> Type -> HParser ()
 updateSymT symId typeV = updateState $ \st -> 
-  let symTable = symT st in
-  st { symT = insert symId typeV symTable }
+  let staticTable = staticT st
+      symbolTable = fst staticTable
+      typeTable   = snd staticTable
+      newSymTable = insert symId typeV symbolTable in
+  
+   st { staticT = (newSymTable, typeTable) }
 
 
 -- | Insere o par (identificador, tipo) na tabela de tipos,
 -- sem se preocupar se o tipo ja estava presente
 updateTypeT :: Identifier -> Type -> HParser ()
 updateTypeT typeId typeV = updateState $ \st ->
-  let typeTable = typeT st in
-  st { typeT = insert typeId typeV typeTable }
+  let staticTable  = staticT st
+      typeTable    = snd staticTable
+      symbolTable  = fst staticTable
+      newTypeTable = insert typeId typeV typeTable in
+      
+  st { staticT = (symbolTable, newTypeTable) }
 
 
 -- | Parser utilizado para logar um erro de compilacao no
@@ -135,7 +143,8 @@ logError msg =
 -- interpretador e uma lista vazia de erros de compilacao.
 initialState   :: ParserState
 initialState = PState {
-   symT   = empty
- , typeT  = fromList [("integer", IntegerT), ("boolean", BooleanT)]
+   staticT = (symTab, typeTab)
  , errors = []
 }
+ where symTab  = empty
+       typeTab = fromList [("integer",IntegerT),("boolean",BooleanT)]

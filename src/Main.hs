@@ -3,11 +3,13 @@
 
 module Main where
 
+import Eval.Monad (eval)
 import Parser.HParser (parse)
 import Parser.State (compErrors, ParserState)
 
+import Control.Monad (when, liftM)
+
 import System (getArgs)
-import Control.Monad (when)
 import System.Exit (exitFailure)
 import System.FilePath (takeFileName)
 
@@ -36,19 +38,28 @@ main =
  
      let result = parse srcName src
  
-     showParse result
+     b <- liftM not (showParse result)
+     when (b) exitFailure
+      
+     putStrLn ""
+     eval (fromRight result)
 
 
 -- | Imprime o resultado do processo de parsing
-showParse :: (Show a, Show b) => Either a (b, ParserState) -> IO ()
+showParse :: (Show a, Show b) => Either a (b, ParserState) -> IO Bool
 
 showParse (Left err) =
   do putStrLn "-> Parse Error:\n"
      print err
+     return False
       
 showParse (Right (tree, state)) = 
   do putStr "-> Parse tree:\n\n"
      print tree
      case compErrors state of
-      Nothing   -> return ()
-      Just errL -> putStrLn ('\n': errL)
+      Nothing   -> return True
+      Just errL -> putStrLn ('\n': errL) >> return False
+
+fromRight :: Either a (b, c) -> b
+fromRight (Right (t,_)) = t
+fromRight _ = error "Main.fromRight"

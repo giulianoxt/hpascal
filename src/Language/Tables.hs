@@ -26,5 +26,4 @@ type TypeTable   = Map Identifier Type
 type SymbolTable = Map Identifier Type
 
 
-data StaticData = StaticData SymbolTable TypeTable
- deriving (Show)
+type StaticData  = (SymbolTable, TypeTable)
