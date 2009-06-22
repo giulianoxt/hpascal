@@ -344,6 +344,7 @@ constant :: HParser Constant
 constant =
      ConstNum  `liftM` constNumber
  <|> ConstBool `liftM` constBoolean
+ <|> ConstStr  `liftM` T.stringLiteral
 
 
 -- | Booleano literal

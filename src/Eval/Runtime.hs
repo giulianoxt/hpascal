@@ -1,18 +1,16 @@
 
 module Eval.Runtime where
 
+import Eval.Values
 import Language.Tables
-import TypeSystem.Types
+import TypeSystem.Types (Identifier)
 
-import Data.Map (Map, empty, union)
+import Data.Map
+import Data.Maybe (fromJust)
+import Prelude hiding (lookup)
 
 
-data Value =
-   IntVal  Int
- | BoolVal Bool
- deriving (Show, Eq)
- 
- 
+
 type ValueTable = Map Identifier Value
 
  
@@ -24,10 +22,10 @@ data RuntimeEnv = RuntimeEnv {
 
 
 updateRuntimeEnv :: StaticData -> RuntimeEnv -> RuntimeEnv
-updateRuntimeEnv (symT, typeT) runtimeEnv =
+updateRuntimeEnv (newSymT, newTypeT) runtimeEnv =
   runtimeEnv {
-     symT  = union symT oldSymT
-   , typeT = union typeT oldTypeT
+     symT  = union newSymT oldSymT
+   , typeT = union newTypeT oldTypeT
   }
 
   where
@@ -42,8 +40,22 @@ updateValTable ident val re =
   oldValT = valT re
 
 
+insertVarDefVal :: Identifier -> RuntimeEnv -> RuntimeEnv
+insertVarDefVal ident re =
+  re { valT = newValT }
+  
+  where symTab    = symT re
+        Just varT = lookup ident symTab
+        varVal    = defVal varT
+        oldValT   = valT re
+        newValT   = insert ident varVal oldValT  
 
 
+varValue :: Identifier -> RuntimeEnv -> Value
+varValue ident re = fromJust (lookup ident valTab)
+ where valTab = valT re
+
+  
 
 
 defaultRuntimeEnv :: RuntimeEnv
@@ -53,11 +65,3 @@ defaultRuntimeEnv =
    , typeT = empty
    , valT  = empty
   }
-
-
-defVal :: Type -> Value
-defVal IntegerT = IntVal 0
-defVal BooleanT = BoolVal False
-defVal _        = error "Runtime.defVal"
-
-

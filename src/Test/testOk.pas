@@ -8,9 +8,16 @@ var
   x, y : integer;
   z : boolean;
 begin
-  x := 2;
-  x += (x + 1) {- comentario -} div 3;
-  x := 3 shl 2;
-  y := x + 3 * 3 / (4 * x -  5);
+  writeln("Contando até 20");
+
+  x := 1;
+
+  while (x <= 20) do
+  begin
+    writeln(x);
+    x := x + 1;
+  end;
+
+  writeln("Tah contado boooy");
 end.
 

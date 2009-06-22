@@ -29,6 +29,7 @@ type Identifier = String
 data Type = 
    IntegerT     -- ^ Inteiro
  | BooleanT     -- ^ Booleano
+ | StringT
  | UnknownType  -- ^ Tipo indefinido
  deriving (Show, Eq)
 

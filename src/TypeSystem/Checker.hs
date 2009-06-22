@@ -157,6 +157,7 @@ infer e =
 constInf :: Constant -> HParser Type
 constInf (ConstNum  _) = return IntegerT
 constInf (ConstBool _) = return BooleanT
+constInf (ConstStr  _) = return StringT
 constInf _             = error "TypeChecker.constInf"
 
 unaryInf  :: UnaryCoercion
