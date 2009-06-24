@@ -3,8 +3,11 @@
 program Test;
 var
   x, y : integer;
-  z    : boolean;
-  l    : integer;
+
+procedure setX(val : integer = 0);
+begin
+ x := val;
+end;
 
 begin
   writeln("Contando até 20");
@@ -17,17 +20,6 @@ begin
     x += 1;
   end;
 
-  writeln("Tire onda booooyy! hauahuhauha");
-
-  y := x - 1;
-
-  if (y = 20) then
-   writeln("eita")
-  else
-   writeln("opa");
-
-  x /= 2;
-  writeln(x);
-
+  writeln("Ok...");
 end.
 

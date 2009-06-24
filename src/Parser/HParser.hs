@@ -116,7 +116,7 @@ procedureDecl =
      ident  <- T.identifier
      params <- T.parens (T.semiSep parameter)
      T.symbol ";"
-     bl     <- enterBlock ident
+     bl     <- enterProcedureBlock ident params
      return (ProcedureDec ident params bl)
  
  where parameter :: HParser Parameter
@@ -382,4 +382,9 @@ constNumber =
 
 
 enterBlock :: Identifier -> HParser Block
-enterBlock = flip withNewScope $ block
+enterBlock ident =
+  withNewScope ident block
+
+enterProcedureBlock :: Identifier -> [Parameter] -> HParser Block
+enterProcedureBlock ident params =
+  withNewScope ident (processParams params >> block)

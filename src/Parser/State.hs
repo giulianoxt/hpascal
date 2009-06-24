@@ -103,18 +103,31 @@ getStaticData :: HParser [StaticData]
 getStaticData = staticT `liftM` getState
 
 
-lookupLocalVar :: Identifier -> HParser (Maybe Type)
-lookupLocalVar ident = liftM (lookup ident) getSymT
+searchIdentifier :: (Ord a) =>
+                   a
+                -> (StaticData -> Map a b)
+                -> [StaticData]
+                -> Maybe b
+searchIdentifier _ _ []      = Nothing
+searchIdentifier k m (sd:ss) =
+  if member k t then
+    Just (fromJust look)
+   else
+     searchIdentifier k m ss
+ where
+  t    = m sd
+  look = lookup k t
+
+lookupVarIdent :: Identifier -> HParser (Maybe Type)
+lookupVarIdent ident =
+  do l <- getStaticData
+     return $ searchIdentifier ident stSymT l
 
 
 lookupTypeIdent :: Identifier -> HParser (Maybe Type)
-lookupTypeIdent ident = liftM search getStaticData
-  where search []      = Nothing
-        search (sd:ss) = if member ident typeT'
-                          then Just (fromJust look)
-                          else search ss
-          where typeT' = stTypeT sd
-                look   = lookup ident typeT'
+lookupTypeIdent ident = 
+  do l <- getStaticData
+     return $ searchIdentifier ident stTypeT l
 
 
 -- | Insere o par (identificador, tipo) na tabela de simbolos,

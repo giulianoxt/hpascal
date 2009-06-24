@@ -32,6 +32,22 @@ processVarDecl (VarDec idl typeV mexpr) =
         Nothing -> return ()
 
 
+processParams :: [Parameter] -> HParser ()
+processParams = mapM_ singleParam
+ where
+  singleParam (Parameter _ (_:_:_) _ (Just _)) =
+    logError MultipleInitialization
+  
+  singleParam (Parameter Value idl typeV mexpr) =
+    forM_ idl $ \varId ->
+      do insertSymbol varId typeV
+         case mexpr of
+          Just e  -> processAssignment (Assignment varId e)
+          Nothing -> return ()
+  
+  singleParam _ = error "TypeSystem.Checker.processParams"
+  
+
 -- | Dado um par (identificador, tipo), tenta inseri-lo
 -- na tabela de simbolos (usando 'updateSymT'), logando um erro
 -- caso o simbolo ja esteja presente la.
@@ -91,7 +107,7 @@ checkExprType typeV expr =
        
 getVarType :: VariableReference -> HParser Type
 getVarType varId = 
-  do look <- lookupLocalVar varId
+  do look <- lookupVarIdent varId
      case look of
       Just t  -> return t
       Nothing -> do logError (UnknownIdentifier varId)
