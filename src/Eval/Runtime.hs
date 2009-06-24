@@ -1,67 +1,186 @@
+{-# LANGUAGE FlexibleContexts #-}
 
 module Eval.Runtime where
 
 import Eval.Values
+import Language.Scope
 import Language.Tables
 import TypeSystem.Types (Identifier)
+import Parser.State (initialState, staticT)
 
 import Data.Map
 import Data.Maybe (fromJust)
 import Prelude hiding (lookup)
 
+import Control.Monad.State
 
 
-type ValueTable = Map Identifier Value
 
- 
-data RuntimeEnv = RuntimeEnv {
-   symT  :: SymbolTable
- , typeT :: TypeTable
- , valT  :: ValueTable
+type ReferenceEnv = [ActiveScope]
+
+
+data ActiveScope = ActiveScope {
+   symT   :: SymbolTable
+ , typeT  :: TypeTable
+ , valT   :: ValueTable
+ , scopeA :: Scope
 } deriving (Show)
 
 
-updateRuntimeEnv :: StaticData -> RuntimeEnv -> RuntimeEnv
-updateRuntimeEnv (newSymT, newTypeT) runtimeEnv =
-  runtimeEnv {
-     symT  = union newSymT oldSymT
-   , typeT = union newTypeT oldTypeT
-  }
+data RuntimeData = RuntimeData {
+   refEnv :: ReferenceEnv
+} deriving (Show)
 
-  where
-    oldSymT  = symT  runtimeEnv
-    oldTypeT = typeT runtimeEnv
-    
 
-updateValTable :: Identifier -> Value -> RuntimeEnv -> RuntimeEnv
-updateValTable ident val re =
-  re { valT = insert ident val oldValT }
+defaultRuntimeData :: RuntimeData
+defaultRuntimeData = RuntimeData { refEnv = [builtinActiveScope] }
  where
-  oldValT = valT re
+   builtinActiveScope :: ActiveScope
+   builtinActiveScope = makeActiveScope $ builtinStaticData
+   
+   builtinStaticData  :: StaticData
+   builtinStaticData = head $ staticT initialState
 
 
-insertVarDefVal :: Identifier -> RuntimeEnv -> RuntimeEnv
-insertVarDefVal ident re =
-  re { valT = newValT }
+
+getRefEnv :: (MonadState RuntimeData m) => m ReferenceEnv
+getRefEnv = liftM refEnv get
+
+getHeadScope :: RuntimeData -> Scope
+getHeadScope = scopeA . head . refEnv
+
+getHeadSymT ::(MonadState RuntimeData m) => m SymbolTable
+getHeadSymT = liftM (symT . head) getRefEnv
+
+
+getHeadValT :: (MonadState RuntimeData m) => m ValueTable
+getHeadValT = liftM (valT . head) getRefEnv
+
+
+putHeadValT :: (MonadState RuntimeData m) => ValueTable -> m ()
+putHeadValT valueT = modify $ \st ->
+ let referenceEnv = refEnv st
+     headScope    = head referenceEnv
+     newHeadScope = headScope { valT = valueT } in
+ st { refEnv =  newHeadScope : tail referenceEnv }
+
+
+putRefEnv :: (MonadState RuntimeData m) => ReferenceEnv -> m ()
+putRefEnv env = modify $ \st -> st { refEnv = env }
+
+
+modifyRefEnv :: (MonadState RuntimeData m) =>
+                (ReferenceEnv -> ReferenceEnv) -> m()
+modifyRefEnv f = getRefEnv >>= putRefEnv . f
+
+
+
+evalNewScope :: (MonadState RuntimeData m) => StaticData -> m a -> m a
+evalNewScope sd eval =
+ do runtimeData <- get
+ 
+    let scopeNow  = getHeadScope runtimeData
+        scopeNext = scope sd
+ 
+    case cmpScopes scopeNow scopeNext of
+     Equal      -> evalEqualScope
+     Child      -> evalChildScope
+     Sibling    -> evalSiblingScope
+     Ancestor p -> evalAncestorScope p
+     _          -> error "Eval.Runtime.newScopeEval"
+
+ where
+  evalEqualScope           = evalSiblingScope
+ 
+  evalChildScope           =
+    do insertScope newActiveScope
+       result <- eval
+       discardScope
+       return result
   
-  where symTab    = symT re
-        Just varT = lookup ident symTab
-        varVal    = defVal varT
-        oldValT   = valT re
-        newValT   = insert ident varVal oldValT  
-
-
-varValue :: Identifier -> RuntimeEnv -> Value
-varValue ident re = fromJust (lookup ident valTab)
- where valTab = valT re
-
+  evalSiblingScope         =
+    do oldHeadScope <- headScope
+       discardScope
+       result       <- evalChildScope
+       insertScope oldHeadScope
+       return result
   
+  evalAncestorScope prefix =
+    do oldRefEnv <- getRefEnv
+      
+       modifyRefEnv dropF
+       result    <- evalChildScope
+       
+       modifyRefEnv $ merge oldRefEnv
+       return result
+    where
+      tailL   = length prefix - 1
+      dropF l = drop (length l - tailL) l
+      
+      merge xs []         = xs
+      merge (_:xs) (y:ys) = y : merge xs ys
+      merge _ _           = error "Eval.Runtime.evalNewScope.merge"
+  
+  newActiveScope           = makeActiveScope sd
+  
+  insertScope              = modifyRefEnv . (:)
+  
+  discardScope             = modifyRefEnv tail
+    
+  headScope                = liftM head getRefEnv
 
-
-defaultRuntimeEnv :: RuntimeEnv
-defaultRuntimeEnv =
-  RuntimeEnv {
-     symT  = empty
-   , typeT = empty
-   , valT  = empty
+    
+makeActiveScope :: StaticData -> ActiveScope
+makeActiveScope (StaticData sdSymT sdTypeT sdScope) =
+  ActiveScope {
+     symT   = sdSymT
+   , typeT  = sdTypeT
+   , valT   = empty
+   , scopeA = sdScope
   }
+
+
+insertDefVal :: (MonadState RuntimeData m) => Identifier -> m ()
+insertDefVal ident =
+  do symT' <- getHeadSymT
+     valT' <- getHeadValT
+     
+     let typeV   = fromJust $ lookup ident symT'
+         newValT = insert ident (defVal typeV) valT'
+     
+     putHeadValT newValT
+
+
+searchScopes :: (ActiveScope -> Bool)
+             -> (ActiveScope -> (a, ActiveScope))
+             -> ReferenceEnv
+             -> (Maybe a, ReferenceEnv)
+searchScopes _ _ []     = (Nothing, [])
+searchScopes p f (s:ss)
+  | p s       = let (x,s')  = f s                 in
+                 (Just x, s':ss)
+  | otherwise = let (x,ss') = searchScopes p f ss in
+                 (x     , s:ss')
+
+
+insertVal :: (MonadState RuntimeData m) => Identifier -> Value -> m ()
+insertVal ident val = modifyRefEnv modifyF
+  where
+    insertV as = ((), as { valT = insert ident val (valT as) })
+    modifyF re = case searchScopes (containsVar ident) insertV re of
+                  (Just _, re') -> re'
+                  _             -> error "Eval.Runtime.insertVal"
+
+
+getVarValue :: (MonadState RuntimeData m) => Identifier -> m Value
+getVarValue ident = 
+  do refEnv' <- getRefEnv
+     case searchScopes (containsVar ident) f refEnv' of
+      (Just v , _) -> return v
+      (Nothing, _) -> error "Eval.Runtime.getVarValue"
+ where
+  f as = (v, as) where Just v = lookup ident (valT as)
+
+
+containsVar :: Identifier -> ActiveScope -> Bool
+containsVar ident = (member ident) . symT

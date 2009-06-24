@@ -28,7 +28,7 @@ processVarDecl (VarDec idl typeV mexpr) =
   forM_ idl $ \varId ->
     do insertSymbol varId typeV
        case mexpr of
-        Just e  -> processAssignment (Assignment ":=" varId e)
+        Just e  -> processAssignment (Assignment varId e)
         Nothing -> return ()
 
 
@@ -48,22 +48,17 @@ insertSymbol symId typeV =
 -- Infere o tipo da expressao do lado direito e da variavel
 -- do lado esquerdo, para checar compatibilidade de atribuicao.
 processAssignment :: Statement -> HParser ()
-processAssignment (Assignment op varRef e) =
-  do te <- infer e
-     tv <- getVarType varRef
-     when (te /= UnknownType && tv /= UnknownType) $
-      case cAssign op tv te of
-        Right _  -> return ()
-        Left msg -> logError (TypeError msg)
+processAssignment (Assignment varRef e) = checkAssignExpr varRef e
 processAssignment _ = error "TypeChecker.processAssignment"
-
 
 
 checkBooleanExpr :: Expr -> HParser ()
 checkBooleanExpr = checkExprType BooleanT
 
+
 checkAssignExpr :: VariableReference -> Expr -> HParser ()
 checkAssignExpr = checkCompatibleExprs . Var
+
 
 checkCaseMatch :: Expr -> CaseMatch -> HParser ()
 checkCaseMatch e m =
@@ -78,7 +73,7 @@ checkCompatibleExprs e1 e2 =
   do t1 <- infer e1
      t2 <- infer e2
      when (t1 /= UnknownType && t2 /= UnknownType) $
-      case cAssign ":=" t1 t2 of
+      case cAssign t1 t2 of
         Right _  -> return ()
         Left msg -> logError (TypeError msg)
 
@@ -96,8 +91,8 @@ checkExprType typeV expr =
        
 getVarType :: VariableReference -> HParser Type
 getVarType varId = 
-  do sTable <- getSymT
-     case lookup varId sTable of
+  do look <- lookupLocalVar varId
+     case look of
       Just t  -> return t
       Nothing -> do logError (UnknownIdentifier varId)
                     return UnknownType
@@ -105,11 +100,11 @@ getVarType varId =
 
 getTypeVal :: Identifier -> HParser Type
 getTypeVal typeId =
-  do tTable <- getTypeT
-     case lookup typeId tTable of
+  do look <- lookupTypeIdent typeId
+     case look of
       Just t  -> return t
       Nothing -> do logError (UnknownIdentifier typeId)
-                    return UnknownType 
+                    return UnknownType
 
 
 -- | Funcao que implementa o mecanismo de inferencia de tipos

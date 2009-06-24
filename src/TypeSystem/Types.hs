@@ -114,13 +114,8 @@ cEqOp2 t1 t2
   | otherwise = fail "two equal types" (t1, t2)
 
 
--- | Atribuicao utilizando o operador indicado como argumento
--- ex: :=, +=, -=, /= 
-cAssign :: String -> BinaryCoercion
-cAssign ":=" t1 t2
+-- | Atribuicao
+cAssign :: BinaryCoercion
+cAssign t1 t2
   | t1 == t2  = suceed t1
   | otherwise = fail "two compatible types" (t1, t2)
-cAssign _ t1 t2
-  | all isNumeric [t1,t2] && 
-    t1 == t2  = suceed t1
-  | otherwise = fail "two compatible numeric types" (t1, t2)

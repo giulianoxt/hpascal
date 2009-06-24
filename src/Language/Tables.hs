@@ -2,6 +2,7 @@
 module Language.Tables where
 
 import Data.Map (Map)
+import Language.Scope (Scope)
 import TypeSystem.Types (Type, Identifier)
 
 
@@ -26,4 +27,8 @@ type TypeTable   = Map Identifier Type
 type SymbolTable = Map Identifier Type
 
 
-type StaticData  = (SymbolTable, TypeTable)
+data StaticData = StaticData {
+    stSymT  :: SymbolTable
+  , stTypeT :: TypeTable
+  , scope   :: Scope
+ } deriving (Show)

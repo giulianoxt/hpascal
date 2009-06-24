@@ -33,7 +33,7 @@ data UsesClause = UsesClause [Identifier]
 -- assim como em definicoes de /subrotinas/.
 --
 -- Contem uma secao de declaracoes e um 'CompoundStatement'.
-data Block = Block DeclarationPart Statement StaticData
+data Block = Block DeclarationPart Statement [StaticData]
  deriving (Show)
 
 -- * Declaracoes
@@ -82,7 +82,7 @@ data ArrayDeclaration = ArrayDec [(Number, Number)]
 data Statement =
    -- simple statements
    Nop
- | Assignment String VariableReference Expr
+ | Assignment VariableReference Expr
  | ProcedureCall Identifier [Expr]
  
  -- control flow statements
@@ -153,7 +153,7 @@ data Expr =
  | ConstExpr Constant    -- ^ Constante
  | Var VariableReference -- ^ Referencia a variavel
  deriving (Show)
- 
+  
 -- | Por enquanto so como um desses tres tipos.
 data Constant =
    ConstNum Number
@@ -182,10 +182,11 @@ showParseTree = showProgram
                    ++ show uses ++ "\n"
                    ++ showBlock 1 block
         
-       showBlock n (Block d st _) =
+       showBlock n (Block d stmt sd) =
         pad n ++ "Block" ++
+        "\n" ++ show sd  ++
         "\n" ++ showDeclPart (n+1) d ++
-        "\n" ++ pad n ++ showStmt (n+1) st
+        "\n" ++ pad n ++ showStmt (n+1) stmt
        
        showDeclPart n (DeclPart _ _ vds pds) =
         pad n ++ "DeclarationPart" ++
@@ -199,8 +200,8 @@ showParseTree = showProgram
        
        showStmt n (Nop) = pad n ++ "Nop"
        
-       showStmt n (Assignment op var expr) = pad n ++
-        "Assignment " ++ show var ++ " " ++ op ++ " " ++ show expr
+       showStmt n (Assignment var expr) = pad n ++
+        "Assignment " ++ show var ++ " " ++ show expr
        
        showStmt n (Compound stmtl) = pad n ++
         "Compound\n" ++ showPadList (n+1) stmtl showStmt

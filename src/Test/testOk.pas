@@ -4,6 +4,8 @@ program Test;
 var
   x, y : integer;
   z    : boolean;
+  l    : integer;
+
 begin
   writeln("Contando até 20");
 
@@ -12,7 +14,7 @@ begin
   while (x <= 20) do
   begin
     writeln(x);
-    x := x + 1;
+    x += 1;
   end;
 
   writeln("Tire onda booooyy! hauahuhauha");
@@ -23,6 +25,9 @@ begin
    writeln("eita")
   else
    writeln("opa");
+
+  x /= 2;
+  writeln(x);
 
 end.
 

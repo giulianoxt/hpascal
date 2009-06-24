@@ -51,11 +51,11 @@ hparser = do T.whiteSpace
 program :: HParser Program
 program = 
   do T.reserved "program"
-     i <- T.identifier
+     ident <- T.identifier
      T.symbol ";"
-     b <- block
+     b     <- enterBlock ident
      T.symbol "."
-     return (Program i (UsesClause []) b)
+     return (Program ident (UsesClause []) b)
 
 
 -- | Reconhece um bloco de codigo ('Block'), contendo declaracoes
@@ -116,7 +116,7 @@ procedureDecl =
      ident  <- T.identifier
      params <- T.parens (T.semiSep parameter)
      T.symbol ";"
-     bl     <- block
+     bl     <- enterBlock ident
      return (ProcedureDec ident params bl)
  
  where parameter :: HParser Parameter
@@ -186,14 +186,26 @@ assignmentStmt varRef =
   do op   <- assignOp
      expr <- expression
      
-     let assign = Assignment op varRef expr 
-     processAssignment assign
+     let rhs = case head op of
+                '+' -> (varExpr :+:)
+                '-' -> (varExpr :-:)
+                '*' -> (varExpr :*:)
+                '/' -> (varExpr :/:)
+                ':' -> id
+                _   -> error "HParser.assignmentStmt"
+                
+         assign = Assignment varRef (rhs expr) 
      
+     processAssignment assign
      return assign
+     
  where assignOp :: HParser String
        assignOp = do op <- oneOf ":+-*/"
                      eq <- T.symbol "="
                      return (op : eq)
+       
+       varExpr :: Expr
+       varExpr = Var varRef
 
 
 -- | Sequenciamento de comandos, utilizando um bloco
@@ -367,3 +379,7 @@ constNumber :: HParser Int
 constNumber =
    do Left n <- T.number
       return (fromIntegral n)
+
+
+enterBlock :: Identifier -> HParser Block
+enterBlock = flip withNewScope $ block

@@ -2,11 +2,17 @@ module Eval.Values where
 
 import TypeSystem.Types
 
+import Data.Map
+
 
 data Value =
    IntVal  Int
  | BoolVal Bool
  | StringVal String
+ 
+type ValueTable = Map Identifier Value
+
+
  
 instance Show Value where
   show (IntVal  n) = show n
