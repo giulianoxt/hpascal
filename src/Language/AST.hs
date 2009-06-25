@@ -84,7 +84,7 @@ data Statement =
    -- simple statements
    Nop
  | Assignment VariableReference Expr
- | ProcedureCall Identifier [Expr]
+ | ProcedureCall Identifier [Expr] Int
  
  -- control flow statements
  | Break | Continue | Raise (Maybe Expr)
@@ -226,9 +226,12 @@ instance (Eq ProcedureInstance) where
 
 matchProcCall :: [Type]
               -> [ProcedureInstance]
-              -> [ProcedureInstance]
-matchProcCall = filter . match
-  where match types (ProcInstance params _) = match' types params
+              -> [(ProcedureInstance, Int)]
+matchProcCall types sigs = match (zip sigs [0..])
+  where match [] = []
+        match (sigP@((ProcInstance params _),_):ps)
+          | match' types params = sigP : match ps
+          | otherwise           = match ps
         
         match' [] []                                    =
           True              -- chamadas vazias

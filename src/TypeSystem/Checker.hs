@@ -33,9 +33,6 @@ processVarDecl (VarDec idl typeV mexpr) =
         Nothing -> return ()
 
 
-processProcedureDecl :: RoutineDeclaration -> HParser ()
-processProcedureDecl = updateProcT False
-
 processParams :: [Parameter] -> HParser ()
 processParams = mapM_ singleParam
  where
@@ -63,11 +60,11 @@ insertSymbol symId typeV =
       Just _  -> logError (IdentifierAlreadyUsed symId)
 
 
-processProcCall :: Statement -> HParser ()
-processProcCall (ProcedureCall ident exprs) =
+processProcCall :: Statement -> HParser Statement
+processProcCall call@(ProcedureCall ident exprs _) =
   do look <- getProcVal ident
      case look of
-       Nothing               -> return ()
+       Nothing               -> return undefined
        Just (Procedure sigs) -> checkCall sigs
  where
   checkCall sigs = 
@@ -76,19 +73,21 @@ processProcCall (ProcedureCall ident exprs) =
        let sigs' = matchProcCall types sigs
        
        case length sigs' of
-        0 -> logError $ WrongCallSignature $
-                 "procedure "
-              ++ show ident
-              ++ ", called with: "
-              ++ show types
+        0 -> do logError $ WrongCallSignature $
+                    "procedure "
+                 ++ show ident
+                 ++ ", called with: "
+                 ++ show types
+                return call
               
-        1 -> return ()
+        1 -> return (ProcedureCall ident exprs $ (snd . head) sigs')
         
-        _ -> logError $ AmbiguousCall $
-                 "procedure "
-              ++ show ident
-              ++ ". Options: "
-              ++ show sigs'
+        _ -> do logError $ AmbiguousCall $
+                    "procedure "
+                 ++ show ident
+                 ++ ". Options: "
+                 ++ show sigs'
+                return call
 
 processProcCall _ = error "TypeSystem.Checker.processProcCall"
 

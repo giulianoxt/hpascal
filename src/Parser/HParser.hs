@@ -178,10 +178,10 @@ procedureCallStmt :: VariableReference -> HParser Statement
 procedureCallStmt varRef =
   do params <- T.parens (T.commaSep expression)
      
-     let call = ProcedureCall varRef params
+     let call = ProcedureCall varRef params undefined
      
-     processProcCall call     
-     return call
+     call' <- processProcCall call     
+     return call'
 
 
 -- | Atribuicoes. Reconhece atribuicoes simples
@@ -389,21 +389,21 @@ constNumber =
 
 enterBlock :: Identifier -> HParser Block
 enterBlock ident =
-  withNewScope ident block
+  liftM fst $ withNewScope ident block
 
 
 enterProcedureBlock :: Identifier -> [Parameter] -> HParser Block
 enterProcedureBlock ident params =
-  withNewScope ident $
-    do processParams params
-      
-       updateProcT False $ ProcedureDec ident params errorBlock
+ do 
+    updateProcT False errorSd $ ProcedureDec ident params errorBlock
+  
+    (b,sd') <- withNewScope ident $ do processParams params
+                                       block
 
-       b@(Block decls stmt _) <- block
-       
-       updateProcT True  $ ProcedureDec ident params b
-       
-       sds <- getStaticData
-       return (Block decls stmt sds) 
+    updateProcT True sd' $ ProcedureDec ident params b
+    
+    return b
+     
  where
-  errorBlock = error "Parser.HParser.enterProcedureBlock"
+  errorBlock = error "Parser.HParser.enterProcedureBlock Block"
+  errorSd    = error "Parser.HParser.enterProcedureBlock Sd"

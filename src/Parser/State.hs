@@ -23,6 +23,7 @@ import Prelude hiding (lookup)
 import Data.Map hiding (null, map)
 
 import Text.ParserCombinators.Parsec
+import Debug.Trace
 
 
 -- | Tipo de todos os parsers do HPascal.
@@ -171,12 +172,12 @@ updateTypeT typeId typeV = updateState $ \st ->
    st { staticT = headScope { stSymT = newTypeTable } : tailScopes }
 
 
-updateProcT :: Bool -> RoutineDeclaration -> HParser ()
-updateProcT putDef (ProcedureDec ident sig block) = 
+updateProcT :: Bool -> StaticData -> RoutineDeclaration -> HParser ()
+updateProcT putDef sd' (ProcedureDec ident sig block) = 
   updateState $ \st ->
     let
      Block decls stmt (_:ss) = block
-     nblock        = Block decls stmt (newHeadScope : ss)
+     nblock        = Block decls stmt (sd' : newHeadScope : ss)
     
      staticTable   = staticT st
      headScope     = head staticTable
@@ -185,7 +186,7 @@ updateProcT putDef (ProcedureDec ident sig block) =
      nProcInstance = [ProcInstance sig block]
      look          = lookup ident procTable
      
-     procTableF  = 
+     procTableF    = 
       case look of
        Nothing       -> 
             insert ident (Procedure nProcInstance)
@@ -203,7 +204,7 @@ updateProcT putDef (ProcedureDec ident sig block) =
     in
      st { staticT = newHeadScope : tailScopes }
     
-updateProcT _ _ = error "Parser.State.updateProcT"
+updateProcT _ _ _ = error "Parser.State.updateProcT"
 
 
 getScope :: HParser Scope
@@ -226,15 +227,18 @@ updateScope ident =
       st { staticT = newStaticData : staticT st }
 
 
-withNewScope :: Identifier -> HParser a -> HParser a
+withNewScope :: Identifier -> HParser a -> HParser (a, StaticData)
 withNewScope newScope p =
   do oldSd <- getStaticData
     
      updateScope newScope
      result <- p
      
+     newHeadSd <- liftM head getStaticData
+     
      updateState $ \st -> st { staticT = oldSd }
-     return result
+     
+     return (result, newHeadSd)
 
 
 -- | Parser utilizado para logar um erro de compilacao no
@@ -264,3 +268,26 @@ initialState = ParserState {
              } : []
  , errors = []
 }
+
+
+debug :: String -> HParser ()
+debug msg = trace ("[HParser] " ++ msg) return ()
+
+debugStStr :: StaticData -> String
+debugStStr sd = 
+  "\n\tscope     = " ++ show (scope sd) ++
+  "\n\tsymTKeys  = " ++ show (keys (stSymT sd))  ++
+  "\n\tprocTKeys = " ++ show (keys (stProcT sd)) ++
+  "\n\ttypeTKeys = " ++ show (keys (stTypeT sd)) ++ "\n"
+
+debugStsStr :: [StaticData] -> String
+debugStsStr = concat . (map debugStStr)
+
+debugSt :: StaticData -> HParser ()
+debugSt = debug . debugStStr
+
+debugSts :: HParser()
+debugSts = liftM staticT getState >>= debugSts'
+
+debugSts' :: [StaticData] -> HParser ()
+debugSts' sds = trace "Lots: "$ mapM_ (trace "\t" debugSt) sds

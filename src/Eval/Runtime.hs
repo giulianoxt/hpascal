@@ -37,7 +37,7 @@ defaultRuntimeData :: RuntimeData
 defaultRuntimeData = RuntimeData { refEnv = [builtinActiveScope] }
  where
    builtinActiveScope :: ActiveScope
-   builtinActiveScope = makeActiveScope $ builtinStaticData
+   builtinActiveScope = makeActiveScope builtinStaticData empty
    
    builtinStaticData  :: StaticData
    builtinStaticData = head $ staticT initialState
@@ -76,8 +76,8 @@ modifyRefEnv f = getRefEnv >>= putRefEnv . f
 
 
 
-evalNewScope :: (MonadState RuntimeData m) => StaticData -> m a -> m a
-evalNewScope sd eval =
+evalNewScope :: (MonadState RuntimeData m) => StaticData -> ValueTable -> m a -> m a
+evalNewScope sd valT' eval =
  do runtimeData <- get
  
     let scopeNow  = getHeadScope runtimeData
@@ -122,7 +122,7 @@ evalNewScope sd eval =
       merge (_:xs) (y:ys) = y : merge xs ys
       merge _ _           = error "Eval.Runtime.evalNewScope.merge"
   
-  newActiveScope           = makeActiveScope sd
+  newActiveScope           = makeActiveScope sd valT'
   
   insertScope              = modifyRefEnv . (:)
   
@@ -131,12 +131,12 @@ evalNewScope sd eval =
   headScope                = liftM head getRefEnv
 
     
-makeActiveScope :: StaticData -> ActiveScope
-makeActiveScope (StaticData sdSymT sdTypeT sdProcT sdScope) =
+makeActiveScope :: StaticData -> ValueTable -> ActiveScope
+makeActiveScope (StaticData sdSymT sdTypeT sdProcT sdScope) valT' =
   ActiveScope {
      symT   = sdSymT
    , typeT  = sdTypeT
-   , valT   = empty
+   , valT   = valT'
    , procT  = sdProcT
    , scopeA = sdScope
   }
@@ -179,10 +179,25 @@ getVarValue ident =
   do refEnv' <- getRefEnv
      case searchScopes (containsVar ident) f refEnv' of
       (Just v , _) -> return v
-      (Nothing, _) -> error "Eval.Runtime.getVarValue"
+      _            -> error $ "Eval.Runtime.getVarValue: " ++ ident
  where
   f as = (v, as) where Just v = lookup ident (valT as)
 
 
+getProcedure :: (MonadState RuntimeData m) =>
+                Identifier
+             -> m [ProcedureInstance]
+getProcedure ident =
+  do refEnv' <- getRefEnv
+     case searchScopes (containsProc ident) f refEnv' of
+      (Just v, _) -> return v
+      _           -> error "Eval.Runtime.getProcedure"
+ where
+  f as = (sigs, as) where Just (Procedure sigs) = lookup ident (procT as)
+
+
 containsVar :: Identifier -> ActiveScope -> Bool
 containsVar ident = (member ident) . symT
+
+containsProc :: Identifier -> ActiveScope -> Bool
+containsProc ident = (member ident) . procT

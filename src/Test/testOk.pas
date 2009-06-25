@@ -2,23 +2,15 @@ program Test;
 var
   x, y : integer;
 
-procedure setX(a : integer; b : integer = 0);
-
-  procedure Test();
-  begin
-   a := b;
-  end;
-
+procedure setX(a : integer);
 begin
  x := a;
-
- setX(2);
 end;
 
 begin
   //writeln("Contando até 20");
 
-  x := 1;
+  setX(1);
 
   while (x <= 20) do
   begin

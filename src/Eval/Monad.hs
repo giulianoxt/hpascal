@@ -6,6 +6,7 @@ import Eval.Values
 import Eval.Runtime
 
 import Control.Monad.State
+import Data.Map hiding (map)
 
 
 type HEval a = StateT RuntimeData IO a
@@ -21,8 +22,8 @@ evalProgram (Program _ _ block) = evalBlock block
 
 evalBlock :: Block -> HEval ()
 evalBlock (Block decls stmt (sd:_)) =
-  evalNewScope sd $ evalDeclarations decls >>
-                    evalStatement stmt
+  evalNewScope sd empty $ evalDeclarations decls >>
+                          evalStatement stmt
 evalBlock _ = error "Eval.Monad.evalBlock"
 
 
@@ -53,9 +54,21 @@ evalStatement (Assignment ident expr) =
   do value <- evalExpr expr
      insertVal ident value
 
-evalStatement (ProcedureCall "writeln" [e]) =
-  do val <- evalExpr e
-     liftIO $ putStrLn (show val)
+evalStatement (ProcedureCall "writeln" exprs _) =
+  do vals <- mapM evalExpr exprs
+     liftIO $ putStrLn $ (unwords . (map show)) vals
+
+evalStatement (ProcedureCall ident exprs sigPos) =
+  do procSig <- liftM (!! sigPos) (getProcedure ident)
+     params  <- mapM evalExpr exprs
+     
+     let ProcInstance sig block  = procSig
+         Block decls stmt (sd:_) = block
+     
+     valT'   <- substParams params sig
+     
+     evalNewScope sd valT' $ evalDeclarations decls >>
+                             evalStatement stmt
 
 evalStatement (If e st1 st2) =
   do BoolVal b <- evalExpr e
@@ -74,7 +87,7 @@ evalStatement while@(While e stmt) =
      when b $ evalStatement stmt >>
               evalStatement while
 
-evalStatement _ = error "Monad.evalStatement"
+evalStatement s = error $ "Monad.evalStatement: " ++ show s
 
 
 
@@ -119,3 +132,28 @@ evalConstant c =
     ConstBool b -> return (BoolVal b)
     ConstStr  s -> return (StringVal s)
     _           -> error "Monad.evalConstant"
+
+
+substParams :: [Value] -> [Parameter] -> HEval ValueTable
+substParams vals params = match vals params empty
+ where
+  -- fim
+  match [] [] t = return t
+  
+  -- passando pra outra secao
+  match vs ((Parameter _ [] _ _):ps) t =
+    match vs ps t
+  
+  -- usando parametro default
+  match [] ((Parameter _ [ident] _ (Just expr)):ps) t =
+    do val <- evalExpr expr
+       match [] ps (insert ident val t)
+
+ -- usando argumento
+  match (v:vs) ((Parameter m (ident:idl) typeV ex):ps) t =
+    match vs ((Parameter m idl typeV ex):ps) (insert ident v t)
+  
+  match _ _ _ = error "Eval.Monad.substParams"
+
+debug :: String -> HEval ()
+debug msg = liftIO $ putStrLn $ "[EvalMonad] " ++ msg

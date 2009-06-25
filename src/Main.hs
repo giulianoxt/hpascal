@@ -93,7 +93,7 @@ header = "HPascal Interpreter - DIM0437\n"
 
 showParse :: (Show a) => Either String a -> Bool -> IO Bool
 showParse (Left  s)  _ =
-  do putStrLn s
+  do putStrLn $ ('\n':s) ++ "\n"
      return False
 showParse (Right p) sh = 
   do when sh $ putStrLn (show p)
