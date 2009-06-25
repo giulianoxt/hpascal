@@ -2,22 +2,22 @@ program Test;
 var
   x, y : integer;
 
-procedure setX(a : integer);
+function double_val(n : integer) : integer;
+
+procedure B();
 begin
- x := a;
+ double_val := n * 2;
 end;
 
 begin
-  //writeln("Contando até 20");
+  B();
+end;
 
-  setX(1);
+begin
 
-  while (x <= 20) do
-  begin
-    //writeln(x);
-    x += 1;
-  end;
+ writeln(double_val(2));
 
-  //writeln("Ok...");
+ writeln(pow(2,10));
+
 end.
 

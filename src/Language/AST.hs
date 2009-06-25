@@ -64,11 +64,11 @@ data VariableDeclaration = VarDec [Identifier] Type (Maybe Expr)
 
 -- | Declaracao de rotinas (procedimentos ou funcoes).
 data RoutineDeclaration =
-   ProcedureDec Identifier ProcSignature Block
- | FunctionDec  Identifier ProcSignature Identifier Block -- (inclui tipo de retorno)
+   ProcedureDec Identifier RoutineSignature Block
+ | FunctionDec  Identifier RoutineSignature Type Block -- (inclui tipo de retorno)
  deriving (Show)
 
-type ProcSignature = [Parameter]
+type RoutineSignature = [Parameter]
 
 -- | Declaracao dos parametros para as rotinas.
 data Parameter = Parameter PassingMode [Identifier] Type (Maybe Expr)
@@ -89,6 +89,9 @@ data Statement =
    -- simple statements
    Nop
  | Assignment VariableReference Expr
+ 
+ | FunctionReturn Identifier Expr
+ 
  | ProcedureCall Identifier [Expr] Int
  
  -- control flow statements
@@ -158,6 +161,8 @@ data Expr =
  
  | ConstExpr Constant    -- ^ Constante
  | Var VariableReference -- ^ Referencia a variavel
+ 
+ | FunctionCall Identifier [Expr] Int
  deriving (Show, Eq)
   
 -- | Por enquanto so como um desses tres tipos.
@@ -206,44 +211,72 @@ type SymbolTable = Map Identifier Type
 
 type ProcedureTable = Map String Procedure
 
+type FunctionTable  = Map String Function
+
 
 data StaticData = StaticData {
     stSymT  :: SymbolTable
   , stTypeT :: TypeTable
   , stProcT :: ProcedureTable
+  , stFuncT :: FunctionTable
   , scope   :: Scope
  } deriving (Show)
 
 
 data Procedure =
    Procedure   {
-     overloads :: [ProcedureInstance]
+     poverloads :: [ProcedureInstance]
    } 
  | HaskellProc {
-     check     :: [Type]  -> Bool
-   , fun       :: (MonadIO m) => [Value] -> m ()
+     pcheck     :: [Type]  -> Bool
+   , pfun       :: (MonadIO m) => [Value] -> m ()
    } 
+
+
+data ProcedureInstance = ProcInstance {
+   psignature :: RoutineSignature
+ , pcode      :: Block
+} deriving (Show)
+
+
+data Function =
+   Function {
+     foverloads :: [FunctionInstance]
+   }
+ | HaskellFunc {
+      fcheck     :: [Type] -> Bool
+    , ftype      :: Type
+    , ffun       :: (MonadIO m) => [Value] -> m Value
+   }
+
+data FunctionInstance = FuncInstance {
+   fsignature    :: RoutineSignature
+ , fcode         :: Block
+ , fInstanceType :: Type
+} deriving (Show)
+
 
 instance (Show Procedure) where
   show (Procedure ps) = "Procedure " ++ show ps
   show (HaskellProc _ _) = "HaskellProcedure"
 
-
-data ProcedureInstance = ProcInstance {
-   signature :: ProcSignature
- , code      :: Block
-} deriving (Show)
+instance (Show Function) where
+  show (Function ps)       = "Function " ++ show ps
+  show (HaskellFunc _ _ _) = "HaskellFunction"
 
 instance (Eq ProcedureInstance) where
   ProcInstance sig1 _ == ProcInstance sig2 _ = (sig1 == sig2)
 
+instance (Eq FunctionInstance) where
+  FuncInstance sig1 _ _ == FuncInstance sig2 _ _ = (sig1 == sig2)
+
 
 matchProcCall :: [Type]
-              -> [ProcedureInstance]
-              -> [(ProcedureInstance, Int)]
+              -> [RoutineSignature]
+              -> [(RoutineSignature, Int)]
 matchProcCall types sigs = match (zip sigs [0..])
   where match [] = []
-        match (sigP@((ProcInstance params _),_):ps)
+        match (sigP@(params ,_):ps)
           | match' types params = sigP : match ps
           | otherwise           = match ps
         

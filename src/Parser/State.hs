@@ -16,7 +16,7 @@ import Language.Basic
 import Language.Builtins
 import Language.Scope (Scope, enterScope)
 
-import Control.Monad (liftM)
+import Control.Monad (liftM, when)
 
 import Data.Maybe (fromJust)
 import Data.List (intercalate)
@@ -41,8 +41,9 @@ type HParser a = GenParser Char ParserState a
 -- encontrados durante o parsing, para que depois sejam mostrados
 -- ao usuario. 
 data ParserState = ParserState {
-   staticT :: [StaticData]
- , errors  :: [CompError]    -- ^ Lista de erros de compilacao
+   staticT    :: [StaticData]
+ , errors     :: [CompError]    -- ^ Lista de erros de compilacao
+ , onFunction :: Maybe (Identifier, Type)
 } deriving (Show)
 
 
@@ -107,9 +108,11 @@ getHeadSymT  = (stSymT . head . staticT) `liftM` getState
 getHeadTypeT :: HParser TypeTable
 getHeadTypeT = (stTypeT . head . staticT) `liftM` getState
 
-
 getStaticData :: HParser [StaticData]
 getStaticData = staticT `liftM` getState
+
+isOnFunction :: HParser (Maybe (Identifier, Type))
+isOnFunction = liftM onFunction getState
 
 
 searchIdentifier :: (Ord a) =>
@@ -143,6 +146,12 @@ lookupProcIdent :: Identifier -> HParser (Maybe Procedure)
 lookupProcIdent ident =
   do l <- getStaticData
      return $ searchIdentifier ident stProcT l
+
+
+lookupFuncIdent :: Identifier -> HParser (Maybe Function)
+lookupFuncIdent ident =
+  do l <- getStaticData
+     return $ searchIdentifier ident stFuncT l
 
 
 -- | Insere o par (identificador, tipo) na tabela de simbolos,
@@ -209,6 +218,43 @@ updateProcT putDef sd' (ProcedureDec ident sig block) =
 updateProcT _ _ _ = error "Parser.State.updateProcT"
 
 
+updateFuncT :: Bool -> StaticData -> RoutineDeclaration -> HParser ()
+updateFuncT putDef sd' (FunctionDec ident sig typeId block) =
+  updateState $ \st ->
+    let
+      Block decls stmt (_:ss) = block
+      nblock      = Block decls stmt (sd' : newHeadScope : ss)
+      
+      staticTable   = staticT st
+      headScope     = head staticTable
+      tailScopes    = tail staticTable
+      funcTable     = stFuncT headScope
+      nFuncInstance = [FuncInstance sig block typeId]
+      look          = lookup ident funcTable
+      
+      funcTableF    =
+        case look of
+          Nothing    ->
+            insert ident (Function nFuncInstance)
+          Just (Function is)
+            | putDef     ->
+                insert ident $ Function $
+                  init is ++ [FuncInstance sig nblock typeId]
+            | otherwise ->
+                insert ident (Function (is ++ nFuncInstance))
+          Just _ -> error "Parser.State.updateFuncT.case"
+
+      newFuncTable = funcTableF funcTable
+      
+      newHeadScope = headScope { stFuncT = newFuncTable }
+     
+     in
+      st { staticT = newHeadScope : tailScopes }
+     
+updateFuncT _ _ _ = error "Parser.State.updateProct"
+
+
+
 getScope :: HParser Scope
 getScope = liftM (scope . head . staticT) getState
 
@@ -222,6 +268,7 @@ updateScope ident =
                             stSymT  = empty
                           , stTypeT = empty
                           , stProcT = empty
+                          , stFuncT = empty
                           , scope   = newScope
                          }
 
@@ -229,17 +276,23 @@ updateScope ident =
       st { staticT = newStaticData : staticT st }
 
 
-withNewScope :: Identifier -> HParser a -> HParser (a, StaticData)
-withNewScope newScope p =
+withNewScope :: Identifier
+             -> (Bool, Type)
+             -> HParser a
+             -> HParser (a, StaticData)
+withNewScope newScope (isFunc,fT) p =
   do oldSd <- getStaticData
-    
      updateScope newScope
+     
+     oldOnFunction <- liftM onFunction getState
+     when isFunc $ updateState $ \st -> st { onFunction = Just (newScope,fT) }
+     
      result <- p
      
+     when isFunc $ updateState $ \st -> st { onFunction = oldOnFunction }
+     
      newHeadSd <- liftM head getStaticData
-     
      updateState $ \st -> st { staticT = oldSd }
-     
      return (result, newHeadSd)
 
 
@@ -266,9 +319,11 @@ initialState = ParserState {
                 stSymT  = builtinSymT
               , stTypeT = builtinTypeT
               , stProcT = builtinProcT
+              , stFuncT = builtinFuncT
               , scope   = ["Builtins"]
              } : []
- , errors = []
+ , errors     = []
+ , onFunction = Nothing
 }
 
 

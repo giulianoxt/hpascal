@@ -1,9 +1,10 @@
 
 module Eval.Monad where
 
-import Language.AST
 import Eval.Values
 import Eval.Runtime
+import Language.AST
+import Language.Basic
 
 import Control.Monad.State
 import Data.Map hiding (map)
@@ -22,8 +23,8 @@ evalProgram (Program _ _ block) = evalBlock block
 
 evalBlock :: Block -> HEval ()
 evalBlock (Block decls stmt (sd:_)) =
-  evalNewScope sd empty $ evalDeclarations decls >>
-                          evalStatement stmt
+  evalNewScope sd $ do evalDeclarations decls
+                       evalStatement stmt
 evalBlock _ = error "Eval.Monad.evalBlock"
 
 
@@ -56,11 +57,14 @@ evalStatement (Assignment ident expr) =
   do value <- evalExpr expr
      insertVal ident value
 
+evalStatement (FunctionReturn fId expr) =
+  evalStatement (Assignment fId expr)
+ 
 evalStatement (ProcedureCall ident exprs sigPos) =
   do proc    <- getProcedure ident
      params  <- mapM evalExpr exprs
      case proc of
-      (Procedure sigs)   -> evalPascalProc (sigs !! sigPos) params
+      (Procedure sigs)  -> evalPascalProc (sigs !! sigPos) params
       (HaskellProc _ _) -> evalHaskellProc proc params
 
 evalStatement (If e st1 st2) =
@@ -90,12 +94,13 @@ evalPascalProc procSig params =
      
      valT'   <- substParams params sig
      
-     evalNewScope sd valT' $ evalDeclarations decls >>
-                             evalStatement stmt
+     evalNewScope sd $ do putHeadValT valT'
+                          evalDeclarations decls
+                          evalStatement stmt
 
 
 evalHaskellProc :: Procedure -> [Value] -> HEval ()
-evalHaskellProc (HaskellProc _ f) v = f v
+evalHaskellProc (HaskellProc _ f) vs = f vs
 evalHaskellProc _ _ = error "Monad.evalHaskellProc"
 
 
@@ -118,8 +123,15 @@ evalExpr expr =
     Var varR  -> evalVarReference varR
     
     ConstExpr c -> evalConstant c
+   
+    FunctionCall ident exprs sigPos ->
+      do func   <- getFunction ident
+         params <- mapM evalExpr exprs
+         case func of
+          (Function sigs)     -> evalPascalFunc ident (sigs !! sigPos) params
+          (HaskellFunc _ _ _) -> evalHaskellFunc func params
     
-    _         -> error "Eval.Monad.evalExpr"
+    _         -> error $ "Eval.Monad.evalExpr: " ++ show expr
     
  where bin e1 e2 f = 
         do v1 <- evalExpr e1
@@ -139,7 +151,29 @@ evalConstant c =
     ConstNum  n -> return (IntVal n)
     ConstBool b -> return (BoolVal b)
     ConstStr  s -> return (StringVal s)
-    _           -> error "Monad.evalConstant"
+    _           -> error $ "Monad.evalConstant" ++ show c
+
+
+evalPascalFunc :: Identifier -> FunctionInstance -> [Value] -> HEval Value
+evalPascalFunc fId funcSig params =
+  do let FuncInstance sig block t = funcSig
+         Block decls stmt (sd:_)  = block
+     
+     paramsValT <- substParams params sig
+     
+     let symT'       = union (stSymT sd) (fromList [(fId, t)])
+         paramsValT' = insert fId (defVal t) paramsValT
+     
+     evalNewScope sd $ do putHeadSymT symT'
+                          putHeadValT paramsValT'
+                          evalDeclarations decls
+                          evalStatement stmt
+                          getVarValue fId
+
+
+evalHaskellFunc :: Function -> [Value] -> HEval Value
+evalHaskellFunc (HaskellFunc _ _ f) vs = f vs
+evalHaskellFunc _ _ = error "Eval.Monad.evalHaskellFunc"
 
 
 substParams :: [Value] -> [Parameter] -> HEval ValueTable
@@ -162,6 +196,7 @@ substParams vals params = match vals params empty
     match vs ((Parameter m idl typeV ex):ps) (insert ident v t)
   
   match _ _ _ = error "Eval.Monad.substParams"
+
 
 debug :: String -> HEval ()
 debug msg = liftIO $ putStrLn $ "[EvalMonad] " ++ msg

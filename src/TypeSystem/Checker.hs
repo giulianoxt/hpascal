@@ -29,7 +29,7 @@ processVarDecl (VarDec idl typeV mexpr) =
   forM_ idl $ \varId ->
     do insertSymbol varId typeV
        case mexpr of
-        Just e  -> processAssignment (Assignment varId e)
+        Just e  -> processAssignment (Assignment varId e) >> return ()
         Nothing -> return ()
 
 
@@ -43,7 +43,7 @@ processParams = mapM_ singleParam
     forM_ idl $ \varId ->
       do insertSymbol varId typeV
          case mexpr of
-          Just e  -> processAssignment (Assignment varId e)
+          Just e  -> processAssignment (Assignment varId e) >> return ()
           Nothing -> return ()
   
   singleParam _ = error "TypeSystem.Checker.processParams"
@@ -71,7 +71,7 @@ processProcCall call@(ProcedureCall ident exprs _) =
   checkCall sigs = 
     do types <- mapM infer exprs
        
-       let sigs' = matchProcCall types sigs
+       let sigs' = matchProcCall types (map psignature sigs)
        
        case length sigs' of
         0 -> do logError $ WrongCallSignature $
@@ -105,12 +105,76 @@ processProcCall call@(ProcedureCall ident exprs _) =
 processProcCall _ = error "TypeSystem.Checker.processProcCall"
 
 
+
+processFuncCall :: Expr -> HParser Expr
+processFuncCall call@(FunctionCall ident exprs _) =
+  do look <- getFuncVal ident
+     case look of
+      Nothing                       -> return call
+      Just (Function sigs)          -> checkCall sigs
+      Just (HaskellFunc checkF _ _) -> checkHCall checkF
+ where
+  checkCall sigs =
+    do types <- mapM infer exprs
+      
+       let sigs' = matchProcCall types (map fsignature sigs)
+       
+       case length sigs' of
+        0 -> do logError $ WrongCallSignature $
+                    "function "
+                 ++ show ident
+                 ++ ", called with: "
+                 ++ show types
+                return call
+
+        1 -> return (FunctionCall ident exprs $ (snd . head) sigs')
+        
+        _ -> do logError $ AmbiguousCall $
+                    "function "
+                 ++ show ident
+                 ++ ". Options: "
+                 ++ show sigs'
+                return call
+
+  checkHCall checkF =
+    do types <- mapM infer exprs
+      
+       when (not $ checkF types) $
+         do logError $ WrongCallSignature $
+                "procedure "
+              ++ show ident
+              ++ ", called with: "
+              ++ show types    
+       
+       return call
+
+processFuncCall _ = error "TypeSystem.Checker.processFuncCall"
+
+
 -- | Parser responsavel por processar uma atribuicao.
 --
 -- Infere o tipo da expressao do lado direito e da variavel
 -- do lado esquerdo, para checar compatibilidade de atribuicao.
-processAssignment :: Statement -> HParser ()
-processAssignment (Assignment varRef e) = checkAssignExpr varRef e
+processAssignment :: Statement -> HParser Statement
+processAssignment assign@(Assignment varRef e) =
+  do onF <- isOnFunction
+     
+     let check'  = checkAssignExpr varRef e >> return assign
+         fReturn = FunctionReturn varRef e 
+     
+     case onF of
+      Nothing -> check'
+      Just (fId, t1)
+        | varRef /= fId -> check'
+        | otherwise     -> do
+            t2 <- infer e
+            if (t1 /= UnknownType && t2 /= UnknownType) then
+              case cAssign t1 t2 of
+                Right _  -> return fReturn
+                Left msg -> logError (TypeError msg) >> return Nop
+             else
+               return Nop
+      
 processAssignment _ = error "TypeSystem.Checker.processAssignment"
 
 
@@ -156,7 +220,8 @@ getVarType varId =
   do look <- lookupVarIdent varId
      case look of
       Just t  -> return t
-      Nothing -> do logError (UnknownIdentifier varId)
+      Nothing -> do logError $ UnknownIdentifier $
+                      "var identifier " ++ show varId
                     return UnknownType
 
 
@@ -165,7 +230,8 @@ getTypeVal typeId =
   do look <- lookupTypeIdent typeId
      case look of
       Just t  -> return t
-      Nothing -> do logError (UnknownIdentifier typeId)
+      Nothing -> do logError $ UnknownIdentifier $
+                     "type identifier " ++ show typeId
                     return UnknownType
 
 
@@ -174,7 +240,18 @@ getProcVal procId =
   do look <- lookupProcIdent procId
      case look of
       Just _  -> return ()
-      Nothing -> logError (UnknownIdentifier procId)
+      Nothing -> logError $ UnknownIdentifier $
+                  "procedure " ++ show procId
+     return look
+
+
+getFuncVal :: Identifier -> HParser (Maybe Function)
+getFuncVal funcId =
+  do look <- lookupFuncIdent funcId
+     case look of
+      Just _  -> return ()
+      Nothing -> logError $ UnknownIdentifier $
+                  "function " ++ show funcId
      return look
 
 
@@ -214,7 +291,14 @@ infer e =
   e1 `Or` e2  -> binaryInf cBoolOp2 e1 e2
   e1 `Mod` e2 -> binaryInf cNumOp2 e1 e2
   e1 `Div` e2 -> binaryInf cNumOp2 e1 e2
- 
+  
+  FunctionCall fId _ sigP ->
+    do look <- getFuncVal fId
+       case look of
+        Nothing                  -> error "TypeChecker.infer.FunctionCall"
+        Just (Function sigs)     -> return $ fInstanceType (sigs !! sigP)
+        Just (HaskellFunc _ t _) -> return t
+
 -- As funcoes abaixo encapsulam os metodos de coercao
 -- exportados pelo modulo 'Types', adicionando:
 --  - Propagacao de tipos indefinidos pela recursao

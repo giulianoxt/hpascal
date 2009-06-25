@@ -21,8 +21,6 @@ import Control.Monad (when, liftM)
 import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Expr
 
-import Debug.Trace
-
 
 -- | Funcao para execucao do parser principal do HPascal
 parse :: SourceName
@@ -75,10 +73,10 @@ block =
 -- comecando com keywords e contendo uma outra lista de declaracoes.
 declarations :: HParser DeclarationPart
 declarations =
-  do varL      <- optSection varDeclarations
-     procDecls <- T.semiSep procedureDecl
+  do varL   <- optSection varDeclarations
+     rdecls <- T.semiSep routineDecl
      
-     return (DeclPart [] [] varL procDecls)
+     return (DeclPart [] [] varL rdecls)
 
  where -- | Recebe um parser para uma declaracao,
        -- e monta um parser para uma secao opcional de declaracoes
@@ -113,6 +111,13 @@ varDeclarations = liftM concat (many1 varDeclaration)
            return dec
 
 
+routineDecl :: HParser RoutineDeclaration
+routineDecl =
+     functionDecl
+ <|> procedureDecl
+ <?> "routine declaration"
+
+
 procedureDecl :: HParser RoutineDeclaration
 procedureDecl =
   do T.reserved "procedure"
@@ -122,21 +127,35 @@ procedureDecl =
      bl     <- enterProcedureBlock ident params
      
      return $ ProcedureDec ident params bl
- 
- where parameter :: HParser Parameter
-       parameter =
-        do mode   <- ((T.reserved "const" >> return Const)     <|>
-                      (T.reserved "var"   >> return Reference) <|>
-                       return Value)
 
-           identL <- T.commaSep1 T.identifier
-           T.symbol ":"
-           typeV  <- parseType
-           
-           defV <- option Nothing $ T.symbol "=" >>
-                                    Just `liftM` expression
-           
-           return (Parameter mode identL typeV defV)
+
+functionDecl :: HParser RoutineDeclaration
+functionDecl =
+  do T.reserved "function"
+     ident  <- T.identifier
+     params <- T.parens (T.semiSep parameter)
+     T.symbol ":"
+     typeId <- parseTypeIdentifier
+     T.symbol ";"
+     bl     <- enterFunctionBlock ident typeId params
+     
+     return $ FunctionDec ident params typeId bl
+
+
+parameter :: HParser Parameter
+parameter =
+ do mode   <- ((T.reserved "const" >> return Const)     <|>
+               (T.reserved "var"   >> return Reference) <|>
+                return Value)
+
+    identL  <- T.commaSep1 T.identifier
+    T.symbol ":"
+    typeV  <- parseType
+    
+    defV <- option Nothing $ T.symbol "=" >>
+                            Just `liftM` expression
+    
+    return $ Parameter mode identL typeV defV
 
 
 -- | Faz parsing de uma definição de tipo, retornando um
@@ -146,7 +165,10 @@ procedureDecl =
 -- tenha sido definido, retorna um UnknownType e loga o erro
 -- no estado interno do parser.
 parseType :: HParser Type
-parseType =
+parseType = parseTypeIdentifier
+
+parseTypeIdentifier :: HParser Type
+parseTypeIdentifier = 
   do typeId <- T.identifier
      getTypeVal typeId
 
@@ -208,8 +230,9 @@ assignmentStmt varRef =
                 
          assign = Assignment varRef (rhs expr) 
      
-     processAssignment assign
-     return assign
+     -- Pode mudar para um functionReturn
+     stmt <- processAssignment assign
+     return stmt
      
  where assignOp :: HParser String
        assignOp = do op <- oneOf ":+-*/"
@@ -367,7 +390,7 @@ operators =
 simpleExpr :: HParser Expr
 simpleExpr = 
      T.parens expression
- <|> Var       `liftM` T.identifier
+ <|> identifierExpr
  <|> ConstExpr `liftM` constant
  <?> "expression"
 
@@ -393,23 +416,51 @@ constNumber =
       return (fromIntegral n)
 
 
+identifierExpr :: HParser Expr
+identifierExpr =
+  do ident <- T.identifier
+     option (Var ident) (functionCall ident)
+
+
+functionCall :: Identifier -> HParser Expr
+functionCall funcRef =
+  do params <- T.parens (T.commaSep expression)
+     let call = FunctionCall funcRef params undefined
+     call'  <- processFuncCall call
+     return call'
+
+
 enterBlock :: Identifier -> HParser Block
 enterBlock ident =
-  liftM fst $ withNewScope ident block
+  liftM fst $ withNewScope ident (False, error "X") block
 
 
-enterProcedureBlock :: Identifier -> [Parameter] -> HParser Block
+enterProcedureBlock :: Identifier
+                    -> [Parameter]
+                    -> HParser Block
 enterProcedureBlock ident params =
- do 
-    updateProcT False errorSd $ ProcedureDec ident params errorBlock
+ do updateProcT False undefined $ ProcedureDec ident params undefined
   
-    (b,sd') <- withNewScope ident $ do processParams params
-                                       block
+    (b,sd') <- withNewScope ident (False, error "X") $
+                  do processParams params
+                     block
 
     updateProcT True sd' $ ProcedureDec ident params b
     
     return b
-     
- where
-  errorBlock = error "Parser.HParser.enterProcedureBlock Block"
-  errorSd    = error "Parser.HParser.enterProcedureBlock Sd"
+
+
+enterFunctionBlock :: Identifier
+                   -> Type
+                   -> [Parameter]
+                   -> HParser Block
+enterFunctionBlock ident typeId params =
+  do updateFuncT False undefined $ FunctionDec ident params typeId undefined
+    
+     (b,sd') <- withNewScope ident (True,typeId) $
+                  do processParams params
+                     block
+                                        
+     updateFuncT True sd' $ FunctionDec ident params typeId b
+
+     return b

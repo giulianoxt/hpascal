@@ -24,6 +24,7 @@ data ActiveScope = ActiveScope {
  , typeT  :: TypeTable
  , valT   :: ValueTable
  , procT  :: ProcedureTable
+ , funcT  :: FunctionTable
  , scopeA :: Scope
 } deriving (Show)
 
@@ -37,7 +38,7 @@ defaultRuntimeData :: RuntimeData
 defaultRuntimeData = RuntimeData { refEnv = [builtinActiveScope] }
  where
    builtinActiveScope :: ActiveScope
-   builtinActiveScope = makeActiveScope builtinStaticData empty
+   builtinActiveScope = makeActiveScope builtinStaticData
    
    builtinStaticData  :: StaticData
    builtinStaticData = head $ staticT initialState
@@ -57,6 +58,12 @@ getHeadSymT = liftM (symT . head) getRefEnv
 getHeadValT :: (MonadState RuntimeData m) => m ValueTable
 getHeadValT = liftM (valT . head) getRefEnv
 
+putHeadSymT :: (MonadState RuntimeData m) => SymbolTable -> m ()
+putHeadSymT symT' = modify $ \st ->
+  let referenceEnv = refEnv st
+      headScope    = head referenceEnv
+      newHeadScope = headScope { symT = symT' } in
+  st { refEnv = newHeadScope : tail referenceEnv }
 
 putHeadValT :: (MonadState RuntimeData m) => ValueTable -> m ()
 putHeadValT valueT = modify $ \st ->
@@ -76,8 +83,8 @@ modifyRefEnv f = getRefEnv >>= putRefEnv . f
 
 
 
-evalNewScope :: (MonadState RuntimeData m) => StaticData -> ValueTable -> m a -> m a
-evalNewScope sd valT' eval =
+evalNewScope :: (MonadState RuntimeData m) => StaticData -> m a -> m a
+evalNewScope sd eval =
  do runtimeData <- get
  
     let scopeNow  = getHeadScope runtimeData
@@ -122,7 +129,7 @@ evalNewScope sd valT' eval =
       merge (_:xs) (y:ys) = y : merge xs ys
       merge _ _           = error "Eval.Runtime.evalNewScope.merge"
   
-  newActiveScope           = makeActiveScope sd valT'
+  newActiveScope           = makeActiveScope sd
   
   insertScope              = modifyRefEnv . (:)
   
@@ -131,13 +138,14 @@ evalNewScope sd valT' eval =
   headScope                = liftM head getRefEnv
 
     
-makeActiveScope :: StaticData -> ValueTable -> ActiveScope
-makeActiveScope (StaticData sdSymT sdTypeT sdProcT sdScope) valT' =
+makeActiveScope :: StaticData -> ActiveScope
+makeActiveScope (StaticData sdSymT sdTypeT sdProcT sdFuncT sdScope) =
   ActiveScope {
      symT   = sdSymT
    , typeT  = sdTypeT
-   , valT   = valT'
+   , valT   = empty
    , procT  = sdProcT
+   , funcT  = sdFuncT
    , scopeA = sdScope
   }
 
@@ -196,8 +204,24 @@ getProcedure ident =
   f as = (p, as) where Just p = lookup ident (procT as)
 
 
+getFunction :: (MonadState RuntimeData m) =>
+               Identifier
+            -> m Function
+getFunction ident =
+  do refEnv' <- getRefEnv
+     case searchScopes (containsFunc ident) f refEnv' of
+      (Just f', _) -> return f'
+      _           -> error "Eval.Runtime.getFunction"
+ where
+  f as = (f', as) where Just f' = lookup ident (funcT as)
+
+
 containsVar :: Identifier -> ActiveScope -> Bool
 containsVar ident = (member ident) . symT
 
 containsProc :: Identifier -> ActiveScope -> Bool
 containsProc ident = (member ident) . procT
+
+containsFunc :: Identifier -> ActiveScope -> Bool
+containsFunc ident = (member ident) . funcT
+
