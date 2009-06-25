@@ -3,9 +3,9 @@
 module Eval.Runtime where
 
 import Eval.Values
+import Language.AST
 import Language.Scope
-import Language.Tables
-import TypeSystem.Types (Identifier)
+import Language.Basic
 import Parser.State (initialState, staticT)
 
 import Data.Map
@@ -23,6 +23,7 @@ data ActiveScope = ActiveScope {
    symT   :: SymbolTable
  , typeT  :: TypeTable
  , valT   :: ValueTable
+ , procT  :: ProcedureTable
  , scopeA :: Scope
 } deriving (Show)
 
@@ -131,11 +132,12 @@ evalNewScope sd eval =
 
     
 makeActiveScope :: StaticData -> ActiveScope
-makeActiveScope (StaticData sdSymT sdTypeT sdScope) =
+makeActiveScope (StaticData sdSymT sdTypeT sdProcT sdScope) =
   ActiveScope {
      symT   = sdSymT
    , typeT  = sdTypeT
    , valT   = empty
+   , procT  = sdProcT
    , scopeA = sdScope
   }
 

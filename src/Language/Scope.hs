@@ -1,7 +1,7 @@
 
 module Language.Scope where
 
-import TypeSystem.Types (Identifier)
+import Language.Basic
 
 
 type Scope = [Identifier]

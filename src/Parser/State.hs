@@ -11,7 +11,8 @@
 module Parser.State where
 
 import TypeSystem.Types
-import Language.Tables
+import Language.AST
+import Language.Basic
 import Language.Scope (Scope, enterScope)
 
 import Control.Monad (liftM)
@@ -54,6 +55,8 @@ data ErrorMsg  =
    TypeError             String  -- ^ Erro de tipo
  | UnknownIdentifier     String  -- ^ Identificador nao reconhecido
  | IdentifierAlreadyUsed String  -- ^ Declaracao dupla de identificador
+ | WrongCallSignature    String  -- ^ Chamada errada de funcao
+ | AmbiguousCall         String  -- ^ Chamada ambigua de funcao
  | MultipleInitialization
 
 
@@ -66,18 +69,22 @@ instance Show CompError where
 -- | Representacao da mensagem de um erro de compilacao
 instance Show ErrorMsg where
   show (TypeError msg)             =
-    "Type error: "              ++ quoted msg
+    "Type error: "              ++ msg
   show (UnknownIdentifier msg)     =
-    "Not in scope: "            ++ quoted msg
+    "Not in scope: "            ++ msg
   show (IdentifierAlreadyUsed msg) =
-    "Identifier already used: " ++ quoted msg
+    "Identifier already used: " ++ msg
   show (MultipleInitialization)    =
     "Invalid multiple variable initialization"
+  show (WrongCallSignature msg)    =
+    "No signature match for " ++ msg
+  show (AmbiguousCall msg)         =
+    "Multiple matches in call signature for " ++ msg
 
 
 -- | Engloba um string em aspas duplas
-quoted :: String -> String
-quoted = (++ "\"") . ('"' :)
+-- quoted :: String -> String
+-- quoted = (++ "\"") . ('"' :)
 
 
 -- | Extrai uma representacao dos erros de compilacao
@@ -90,13 +97,13 @@ compErrors ps
 
 
 -- | Parser utilizado para extrair a tabela de simbolos do estado interno
-getSymT  :: HParser SymbolTable
-getSymT  = (stSymT . head . staticT) `liftM` getState
+getHeadSymT  :: HParser SymbolTable
+getHeadSymT  = (stSymT . head . staticT) `liftM` getState
 
 
 -- | Parser utilizado para extrair a tabela de tipos do estado interno
-getTypeT :: HParser TypeTable
-getTypeT = (stTypeT . head . staticT) `liftM` getState
+getHeadTypeT :: HParser TypeTable
+getHeadTypeT = (stTypeT . head . staticT) `liftM` getState
 
 
 getStaticData :: HParser [StaticData]
@@ -130,6 +137,12 @@ lookupTypeIdent ident =
      return $ searchIdentifier ident stTypeT l
 
 
+lookupProcIdent :: Identifier -> HParser (Maybe Procedure)
+lookupProcIdent ident =
+  do l <- getStaticData
+     return $ searchIdentifier ident stProcT l
+
+
 -- | Insere o par (identificador, tipo) na tabela de simbolos,
 -- sem se preocupar se o simbolo ja estava presente
 updateSymT :: Identifier -> Type -> HParser ()
@@ -158,6 +171,41 @@ updateTypeT typeId typeV = updateState $ \st ->
    st { staticT = headScope { stSymT = newTypeTable } : tailScopes }
 
 
+updateProcT :: Bool -> RoutineDeclaration -> HParser ()
+updateProcT putDef (ProcedureDec ident sig block) = 
+  updateState $ \st ->
+    let
+     Block decls stmt (_:ss) = block
+     nblock        = Block decls stmt (newHeadScope : ss)
+    
+     staticTable   = staticT st
+     headScope     = head staticTable
+     tailScopes    = tail staticTable
+     procTable     = stProcT headScope
+     nProcInstance = [ProcInstance sig block]
+     look          = lookup ident procTable
+     
+     procTableF  = 
+      case look of
+       Nothing       -> 
+            insert ident (Procedure nProcInstance)
+       Just (Procedure is)
+         | putDef    -> 
+            insert ident $ Procedure $
+             init is ++ [ProcInstance sig nblock]
+         | otherwise ->
+            insert ident (Procedure (is ++ nProcInstance))
+            
+     newProcTable = procTableF procTable
+     
+     newHeadScope = headScope { stProcT = newProcTable }
+     
+    in
+     st { staticT = newHeadScope : tailScopes }
+    
+updateProcT _ _ = error "Parser.State.updateProcT"
+
+
 getScope :: HParser Scope
 getScope = liftM (scope . head . staticT) getState
 
@@ -170,6 +218,7 @@ updateScope ident =
          newStaticData = StaticData {
                             stSymT  = empty
                           , stTypeT = empty
+                          , stProcT = empty
                           , scope   = newScope
                          }
 
@@ -185,7 +234,6 @@ withNewScope newScope p =
      result <- p
      
      updateState $ \st -> st { staticT = oldSd }
-     
      return result
 
 
@@ -211,6 +259,7 @@ initialState = ParserState {
    staticT = StaticData {
                 stSymT  = empty
               , stTypeT = fromList [("integer",IntegerT),("boolean",BooleanT)]
+              , stProcT = empty
               , scope   = ["Builtins"]
              } : []
  , errors = []

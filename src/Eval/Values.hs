@@ -1,5 +1,6 @@
 module Eval.Values where
 
+import Language.Basic
 import TypeSystem.Types
 
 import Data.Map

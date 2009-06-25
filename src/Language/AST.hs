@@ -10,19 +10,18 @@
 
 module Language.AST where
 
-import Language.Tables
-import TypeSystem.Types (Type, Identifier)
+import Language.Basic
+import Language.Scope (Scope)
+import TypeSystem.Types (Type)
 
-import Data.List (intersperse)
+import Data.Map (Map)
 
 
 -- * Programas
 
 -- | Raiz da arvore, representa um programa inteiro.
 data Program = Program Identifier UsesClause Block
-
-instance (Show Program) where
-  show = showParseTree
+ deriving (Show)
 
 -- | Importam nomes de funcoes e variaveis
 -- globais externas para o escopo atual.
@@ -60,16 +59,18 @@ data VariableDeclaration = VarDec [Identifier] Type (Maybe Expr)
 
 -- | Declaracao de rotinas (procedimentos ou funcoes).
 data RoutineDeclaration =
-   ProcedureDec Identifier [Parameter] Block
- | FunctionDec  Identifier [Parameter] Identifier Block -- (inclui tipo de retorno)
+   ProcedureDec Identifier ProcSignature Block
+ | FunctionDec  Identifier ProcSignature Identifier Block -- (inclui tipo de retorno)
  deriving (Show)
+
+type ProcSignature = [Parameter]
 
 -- | Declaracao dos parametros para as rotinas.
 data Parameter = Parameter PassingMode [Identifier] Type (Maybe Expr)
- deriving (Show)
+ deriving (Show, Eq)
  
 data PassingMode = Value | Const | Reference
- deriving (Show)
+ deriving (Show, Eq)
 
 -- | Declaracao de arrays.
 data ArrayDeclaration = ArrayDec [(Number, Number)]
@@ -152,7 +153,7 @@ data Expr =
  
  | ConstExpr Constant    -- ^ Constante
  | Var VariableReference -- ^ Referencia a variavel
- deriving (Show)
+ deriving (Show, Eq)
   
 -- | Por enquanto so como um desses tres tipos.
 data Constant =
@@ -160,7 +161,7 @@ data Constant =
  | ConstStr String
  | ConstBool Bool
  | ConstChar Char
- deriving (Show)
+ deriving (Show, Eq)
 
 -- * Fatores simples
 
@@ -175,56 +176,71 @@ type AssignOp = String
 type VariableReference = Identifier
 
 
-showParseTree :: Program -> String
-showParseTree = showProgram
- where showProgram (Program name uses block) =
-        "Program " ++ show name ++ " "
-                   ++ show uses ++ "\n"
-                   ++ showBlock 1 block
-        
-       showBlock n (Block d stmt sd) =
-        pad n ++ "Block" ++
-        "\n" ++ show sd  ++
-        "\n" ++ showDeclPart (n+1) d ++
-        "\n" ++ pad n ++ showStmt (n+1) stmt
-       
-       showDeclPart n (DeclPart _ _ vds pds) =
-        pad n ++ "DeclarationPart" ++
-        "\n" ++ showPadList (n+1) vds showVarDecl ++
-        "\n" ++ pad n ++ show pds
-        
-       showVarDecl n (VarDec idl typeV mExpr) =
-        pad n ++ "VarDeclaration [" ++ (concat (intersperse " " idl))
-        ++ "] " ++ show typeV
-        ++ " " ++ "(" ++ show mExpr ++ ")"
-       
-       showStmt n (Nop) = pad n ++ "Nop"
-       
-       showStmt n (Assignment var expr) = pad n ++
-        "Assignment " ++ show var ++ " " ++ show expr
-       
-       showStmt n (Compound stmtl) = pad n ++
-        "Compound\n" ++ showPadList (n+1) stmtl showStmt
-       
-       showStmt n (If expr st1 st2) = pad n ++
-        "If " ++ show expr ++ "\n" ++ showStmt (n+1) st1
-        ++ "\n" ++ showStmt (n+1) st2
-       
-       showStmt n (For up ide e1 e2 stmt) = pad n ++
-        "For " ++ show up ++ " " ++ show ide ++ " (" ++
-        show e1 ++ ") (" ++ show e2 ++ ")\n" ++ showStmt (n+1) stmt
-       
-       showStmt n (Repeat stmt expr) = pad n ++
-        "Repeat " ++ show expr ++ "\n" ++ showStmt (n+1) stmt
-       
-       showStmt n (While expr stmt) = pad n ++
-        "While " ++ show expr ++ "\n" ++ showStmt (n+1) stmt
-       
-       showStmt n x = pad n ++ show x 
+-- * Tabelas
 
-       showPadList n ls f =
-        pad n ++ "[" ++ "\n" ++
-          (concat (intersperse "\n" (map (f (n+1)) ls)))
-          ++ "\n" ++ pad n ++ "]"
-          
-       pad = (`replicate` ' ')
+-- | Tabela interna de tipos. Mapeia identificadores para
+-- tipos concretos.
+--
+-- Note que nem todos os tipos utilizados em um programa
+-- estarao presentes nessa tabela, pois o HPascal permite
+-- declaracao de variaveis com tipos anonimos (sem identificadores).
+-- Ex: var x : array (3..5) of string;  
+type TypeTable   = Map Identifier Type
+
+
+-- | Tabela geral de simbolos (variaveis, subrotinas, etc.). Mapeia
+-- identificadores para os tipos concretos dos simbolos.
+--
+-- Devido a declaracao com tipos anonimos, nem todos os tipos presentes
+-- aqui estarao na tabela 'TypeTable'.
+--
+-- Nao guardamos o valor atual da variavel, por exemplo, pois as tabelas
+-- deste modulo so serao utilizadas durante o parsing.
+type SymbolTable = Map Identifier Type
+
+
+type ProcedureTable = Map String Procedure
+
+
+data StaticData = StaticData {
+    stSymT  :: SymbolTable
+  , stTypeT :: TypeTable
+  , stProcT :: ProcedureTable
+  , scope   :: Scope
+ } deriving (Show)
+
+
+data Procedure = Procedure {
+   overloads :: [ProcedureInstance]
+} deriving (Show)
+
+
+data ProcedureInstance = ProcInstance {
+   signature :: ProcSignature
+ , code      :: Block
+} deriving (Show)
+
+instance (Eq ProcedureInstance) where
+  ProcInstance sig1 _ == ProcInstance sig2 _ = (sig1 == sig2)
+
+
+matchProcCall :: [Type]
+              -> [ProcedureInstance]
+              -> [ProcedureInstance]
+matchProcCall = filter . match
+  where match types (ProcInstance params _) = match' types params
+        
+        match' [] []                                    =
+          True              -- chamadas vazias
+        match' []     ((Parameter _ [] _ _):ps)         =
+          match' [] ps      -- n devia vir aqui eu acho
+        match' []     ((Parameter _ [_] _ (Just _)):ps) =
+          match' [] ps      -- usando parametro default
+        match' (t:ts) ((Parameter _ [] _ _):ps)         =
+          match' (t:ts) ps  -- passando pra outra secao
+        match' (t:ts) ((Parameter m (_:idl) t' ex):ps)
+          | t == t'   =     -- usando argumento
+             match' ts ((Parameter m idl t' ex):ps)
+          | otherwise =     -- nao casou
+             False
+        match' _ _ = False

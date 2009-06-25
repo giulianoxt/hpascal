@@ -7,6 +7,7 @@
 module TypeSystem.Checker where
 
 import Language.AST
+import Language.Basic
 import Parser.State
 import TypeSystem.Types
 
@@ -32,6 +33,9 @@ processVarDecl (VarDec idl typeV mexpr) =
         Nothing -> return ()
 
 
+processProcedureDecl :: RoutineDeclaration -> HParser ()
+processProcedureDecl = updateProcT False
+
 processParams :: [Parameter] -> HParser ()
 processParams = mapM_ singleParam
  where
@@ -46,17 +50,47 @@ processParams = mapM_ singleParam
           Nothing -> return ()
   
   singleParam _ = error "TypeSystem.Checker.processParams"
-  
+
 
 -- | Dado um par (identificador, tipo), tenta inseri-lo
 -- na tabela de simbolos (usando 'updateSymT'), logando um erro
 -- caso o simbolo ja esteja presente la.
 insertSymbol :: Identifier -> Type -> HParser ()
 insertSymbol symId typeV =
-  do symTable <- getSymT
+  do symTable <- getHeadSymT
      case lookup symId symTable of
       Nothing -> updateSymT symId typeV
       Just _  -> logError (IdentifierAlreadyUsed symId)
+
+
+processProcCall :: Statement -> HParser ()
+processProcCall (ProcedureCall ident exprs) =
+  do look <- getProcVal ident
+     case look of
+       Nothing               -> return ()
+       Just (Procedure sigs) -> checkCall sigs
+ where
+  checkCall sigs = 
+    do types <- mapM infer exprs
+       
+       let sigs' = matchProcCall types sigs
+       
+       case length sigs' of
+        0 -> logError $ WrongCallSignature $
+                 "procedure "
+              ++ show ident
+              ++ ", called with: "
+              ++ show types
+              
+        1 -> return ()
+        
+        _ -> logError $ AmbiguousCall $
+                 "procedure "
+              ++ show ident
+              ++ ". Options: "
+              ++ show sigs'
+
+processProcCall _ = error "TypeSystem.Checker.processProcCall"
 
 
 -- | Parser responsavel por processar uma atribuicao.
@@ -65,7 +99,7 @@ insertSymbol symId typeV =
 -- do lado esquerdo, para checar compatibilidade de atribuicao.
 processAssignment :: Statement -> HParser ()
 processAssignment (Assignment varRef e) = checkAssignExpr varRef e
-processAssignment _ = error "TypeChecker.processAssignment"
+processAssignment _ = error "TypeSystem.Checker.processAssignment"
 
 
 checkBooleanExpr :: Expr -> HParser ()
@@ -121,6 +155,15 @@ getTypeVal typeId =
       Just t  -> return t
       Nothing -> do logError (UnknownIdentifier typeId)
                     return UnknownType
+
+
+getProcVal :: Identifier -> HParser (Maybe Procedure)
+getProcVal procId =
+  do look <- lookupProcIdent procId
+     case look of
+      Just _  -> return ()
+      Nothing -> logError (UnknownIdentifier procId)
+     return look
 
 
 -- | Funcao que implementa o mecanismo de inferencia de tipos

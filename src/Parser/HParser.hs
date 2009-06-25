@@ -9,8 +9,9 @@
 module Parser.HParser where
 
 import Language.AST
+import Language.Basic
 import TypeSystem.Checker
-import TypeSystem.Types (Type, Identifier)
+import TypeSystem.Types (Type)
 
 import Parser.State
 import qualified Parser.Tokens as T
@@ -117,7 +118,8 @@ procedureDecl =
      params <- T.parens (T.semiSep parameter)
      T.symbol ";"
      bl     <- enterProcedureBlock ident params
-     return (ProcedureDec ident params bl)
+     
+     return $ ProcedureDec ident params bl
  
  where parameter :: HParser Parameter
        parameter =
@@ -175,7 +177,11 @@ identifierStmt =
 procedureCallStmt :: VariableReference -> HParser Statement
 procedureCallStmt varRef =
   do params <- T.parens (T.commaSep expression)
-     return (ProcedureCall varRef params)
+     
+     let call = ProcedureCall varRef params
+     
+     processProcCall call     
+     return call
 
 
 -- | Atribuicoes. Reconhece atribuicoes simples
@@ -385,6 +391,19 @@ enterBlock :: Identifier -> HParser Block
 enterBlock ident =
   withNewScope ident block
 
+
 enterProcedureBlock :: Identifier -> [Parameter] -> HParser Block
 enterProcedureBlock ident params =
-  withNewScope ident (processParams params >> block)
+  withNewScope ident $
+    do processParams params
+      
+       updateProcT False $ ProcedureDec ident params errorBlock
+
+       b@(Block decls stmt _) <- block
+       
+       updateProcT True  $ ProcedureDec ident params b
+       
+       sds <- getStaticData
+       return (Block decls stmt sds) 
+ where
+  errorBlock = error "Parser.HParser.enterProcedureBlock"

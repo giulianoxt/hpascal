@@ -1,25 +1,31 @@
-{ TesteOK - 1 }
-
 program Test;
 var
   x, y : integer;
 
-procedure setX(val : integer = 0);
+procedure setX(a : integer; b : integer = 0);
+
+  procedure Test();
+  begin
+   a := b;
+  end;
+
 begin
- x := val;
+ x := a;
+
+ setX(2);
 end;
 
 begin
-  writeln("Contando até 20");
+  //writeln("Contando até 20");
 
   x := 1;
 
   while (x <= 20) do
   begin
-    writeln(x);
+    //writeln(x);
     x += 1;
   end;
 
-  writeln("Ok...");
+  //writeln("Ok...");
 end.
 

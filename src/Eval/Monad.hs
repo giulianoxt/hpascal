@@ -64,10 +64,10 @@ evalStatement (If e st1 st2) =
       else
        evalStatement st2
 
-evalStatement repeatSt@(Repeat stmt e) =
+evalStatement repeat'@(Repeat stmt e) =
   do evalStatement stmt
      BoolVal b <- evalExpr e
-     unless b $ evalStatement repeatSt
+     unless b $ evalStatement repeat'
 
 evalStatement while@(While e stmt) =
   do BoolVal b <- evalExpr e

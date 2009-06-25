@@ -13,9 +13,6 @@ import Prelude hiding (fail)
 -- * Definicoes de tipos
 
 
-type Identifier = String
-
-
 -- | Tipo variante em Haskell usado para representar os tipos
 -- concretos presentes em programas HPascal
 --
@@ -31,7 +28,13 @@ data Type =
  | BooleanT     -- ^ Booleano
  | StringT
  | UnknownType  -- ^ Tipo indefinido
- deriving (Show, Eq)
+ deriving (Eq)
+ 
+instance (Show Type) where
+  show IntegerT    = "integer"
+  show BooleanT    = "boolean"
+  show StringT     = "string"
+  show UnknownType = "UnknownType"
 
 
 
@@ -119,3 +122,4 @@ cAssign :: BinaryCoercion
 cAssign t1 t2
   | t1 == t2  = suceed t1
   | otherwise = fail "two compatible types" (t1, t2)
+            
