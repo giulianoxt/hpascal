@@ -21,6 +21,8 @@ import Control.Monad (when, liftM)
 import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Expr
 
+import Debug.Trace
+
 
 -- | Funcao para execucao do parser principal do HPascal
 parse :: SourceName
@@ -170,17 +172,21 @@ identifierStmt :: HParser Statement
 identifierStmt =
   do varRef <- variableReference
     
-     ( (lookAhead (T.symbol "(") >> procedureCallStmt varRef) <|>
-       assignmentStmt varRef )
+     ( (lookAhead (T.symbol  "(") >> procedureCallStmt varRef) <|>
+       (lookAhead (oneOf ":+-*/") >> assignmentStmt    varRef) <|>
+       (specialProcedureCall varRef []) )
 
 
 procedureCallStmt :: VariableReference -> HParser Statement
 procedureCallStmt varRef =
   do params <- T.parens (T.commaSep expression)
-     
-     let call = ProcedureCall varRef params undefined
-     
-     call' <- processProcCall call     
+     specialProcedureCall varRef params
+
+
+specialProcedureCall :: VariableReference -> [Expr] -> HParser Statement
+specialProcedureCall varRef params =
+  do let call = ProcedureCall varRef params undefined
+     call' <- processProcCall call
      return call'
 
 

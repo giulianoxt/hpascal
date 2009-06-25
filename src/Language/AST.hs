@@ -1,3 +1,5 @@
+{-# LANGUAGE RankNTypes #-}
+
 -- |Modulo contendo a definicao da arvore abstrata
 -- de sintaxe do HPascal. Pedacos da arvore sao definidos
 -- separadamente, usando construtores /data/. 
@@ -12,9 +14,12 @@ module Language.AST where
 
 import Language.Basic
 import Language.Scope (Scope)
+
+import Eval.Values (Value)
 import TypeSystem.Types (Type)
 
 import Data.Map (Map)
+import Control.Monad.Trans (MonadIO)
 
 
 -- * Programas
@@ -210,9 +215,18 @@ data StaticData = StaticData {
  } deriving (Show)
 
 
-data Procedure = Procedure {
-   overloads :: [ProcedureInstance]
-} deriving (Show)
+data Procedure =
+   Procedure   {
+     overloads :: [ProcedureInstance]
+   } 
+ | HaskellProc {
+     check     :: [Type]  -> Bool
+   , fun       :: (MonadIO m) => [Value] -> m ()
+   } 
+
+instance (Show Procedure) where
+  show (Procedure ps) = "Procedure " ++ show ps
+  show (HaskellProc _ _) = "HaskellProcedure"
 
 
 data ProcedureInstance = ProcInstance {

@@ -186,14 +186,14 @@ getVarValue ident =
 
 getProcedure :: (MonadState RuntimeData m) =>
                 Identifier
-             -> m [ProcedureInstance]
+             -> m Procedure
 getProcedure ident =
   do refEnv' <- getRefEnv
      case searchScopes (containsProc ident) f refEnv' of
-      (Just v, _) -> return v
+      (Just p, _) -> return p
       _           -> error "Eval.Runtime.getProcedure"
  where
-  f as = (sigs, as) where Just (Procedure sigs) = lookup ident (procT as)
+  f as = (p, as) where Just p = lookup ident (procT as)
 
 
 containsVar :: Identifier -> ActiveScope -> Bool

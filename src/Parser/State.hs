@@ -13,6 +13,7 @@ module Parser.State where
 import TypeSystem.Types
 import Language.AST
 import Language.Basic
+import Language.Builtins
 import Language.Scope (Scope, enterScope)
 
 import Control.Monad (liftM)
@@ -196,6 +197,7 @@ updateProcT putDef sd' (ProcedureDec ident sig block) =
              init is ++ [ProcInstance sig nblock]
          | otherwise ->
             insert ident (Procedure (is ++ nProcInstance))
+       Just _        -> error "Parser.State.updateProcT.case"
             
      newProcTable = procTableF procTable
      
@@ -261,9 +263,9 @@ logError msg =
 initialState   :: ParserState
 initialState = ParserState {
    staticT = StaticData {
-                stSymT  = empty
-              , stTypeT = fromList [("integer",IntegerT),("boolean",BooleanT)]
-              , stProcT = empty
+                stSymT  = builtinSymT
+              , stTypeT = builtinTypeT
+              , stProcT = builtinProcT
               , scope   = ["Builtins"]
              } : []
  , errors = []

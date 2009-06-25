@@ -47,6 +47,8 @@ evalVarDeclaration _                              =
 
 evalStatement :: Statement -> HEval ()
 
+evalStatement (Nop) = return ()
+
 evalStatement (Compound stmtl) =
   mapM_ evalStatement stmtl
 
@@ -54,21 +56,12 @@ evalStatement (Assignment ident expr) =
   do value <- evalExpr expr
      insertVal ident value
 
-evalStatement (ProcedureCall "writeln" exprs _) =
-  do vals <- mapM evalExpr exprs
-     liftIO $ putStrLn $ (unwords . (map show)) vals
-
 evalStatement (ProcedureCall ident exprs sigPos) =
-  do procSig <- liftM (!! sigPos) (getProcedure ident)
+  do proc    <- getProcedure ident
      params  <- mapM evalExpr exprs
-     
-     let ProcInstance sig block  = procSig
-         Block decls stmt (sd:_) = block
-     
-     valT'   <- substParams params sig
-     
-     evalNewScope sd valT' $ evalDeclarations decls >>
-                             evalStatement stmt
+     case proc of
+      (Procedure sigs)   -> evalPascalProc (sigs !! sigPos) params
+      (HaskellProc _ _) -> evalHaskellProc proc params
 
 evalStatement (If e st1 st2) =
   do BoolVal b <- evalExpr e
@@ -89,6 +82,21 @@ evalStatement while@(While e stmt) =
 
 evalStatement s = error $ "Monad.evalStatement: " ++ show s
 
+  
+evalPascalProc :: ProcedureInstance -> [Value] -> HEval ()
+evalPascalProc procSig params = 
+  do let ProcInstance sig block  = procSig
+         Block decls stmt (sd:_) = block
+     
+     valT'   <- substParams params sig
+     
+     evalNewScope sd valT' $ evalDeclarations decls >>
+                             evalStatement stmt
+
+
+evalHaskellProc :: Procedure -> [Value] -> HEval ()
+evalHaskellProc (HaskellProc _ f) v = f v
+evalHaskellProc _ _ = error "Monad.evalHaskellProc"
 
 
 evalExpr :: Expr -> HEval Value

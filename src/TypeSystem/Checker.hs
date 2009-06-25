@@ -64,8 +64,9 @@ processProcCall :: Statement -> HParser Statement
 processProcCall call@(ProcedureCall ident exprs _) =
   do look <- getProcVal ident
      case look of
-       Nothing               -> return undefined
-       Just (Procedure sigs) -> checkCall sigs
+       Nothing                     -> return Nop
+       Just (Procedure sigs)       -> checkCall sigs
+       Just (HaskellProc checkF _) -> checkHCall checkF
  where
   checkCall sigs = 
     do types <- mapM infer exprs
@@ -88,6 +89,18 @@ processProcCall call@(ProcedureCall ident exprs _) =
                  ++ ". Options: "
                  ++ show sigs'
                 return call
+
+  checkHCall checkF =
+    do types <- mapM infer exprs
+       
+       when (not $ checkF types) $
+         do logError $ WrongCallSignature $
+                "procedure "
+              ++ show ident
+              ++ ", called with: "
+              ++ show types                        
+       
+       return call
 
 processProcCall _ = error "TypeSystem.Checker.processProcCall"
 
@@ -130,8 +143,8 @@ checkCompatibleExprs e1 e2 =
 checkExprType :: Type -> Expr -> HParser ()
 checkExprType typeV expr =
   do eT <- infer expr
-     check eT typeV
- where check e1 e2
+     check' eT typeV
+ where check' e1 e2
         | elem e1 [UnknownType,e2] = return ()
         | otherwise = logError $ TypeError $
             "Expecting " ++ show typeV ++ " but inferred "
