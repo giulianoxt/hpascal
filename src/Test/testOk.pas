@@ -15,9 +15,11 @@ end;
 
 begin
 
- writeln(double_val(2));
+ write("Digite um número inteiro: ");
 
- writeln(pow(2,10));
+ x := readInt();
+
+ writeln("Dobro = ", double_val(x));
 
 end.
 
