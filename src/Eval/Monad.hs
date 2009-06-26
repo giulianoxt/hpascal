@@ -108,16 +108,16 @@ evalExpr :: Expr -> HEval Value
 evalExpr expr =
   case expr of
     e1 :=: e2  -> bin e1 e2 eqOp2
-    e1 :<: e2  -> bin e1 e2 $ relOp2 (<)
-    e1 :>: e2  -> bin e1 e2 $ relOp2 (>)
-    e1 :<=: e2 -> bin e1 e2 $ relOp2 (<=)
-    e1 :>=: e2 -> bin e1 e2 $ relOp2 (>=)
-    e1 :<>: e2 -> bin e1 e2 $ relOp2 (/=)
+    e1 :<: e2  -> bin e1 e2 $ relOp2 (<) (<)
+    e1 :>: e2  -> bin e1 e2 $ relOp2 (>) (>)
+    e1 :<=: e2 -> bin e1 e2 $ relOp2 (<=) (<=)
+    e1 :>=: e2 -> bin e1 e2 $ relOp2 (>=) (>=)
+    e1 :<>: e2 -> bin e1 e2 $ relOp2 (/=) (/=)
     
-    e1 :+: e2 -> bin e1 e2 $ numOp2 (+)
-    e1 :-: e2 -> bin e1 e2 $ numOp2 (-)
-    e1 :*: e2 -> bin e1 e2 $ numOp2 (*)
-    e1 :/: e2 -> bin e1 e2 $ numOp2 (div)
+    e1 :+: e2 -> bin e1 e2 $ numOp2 (+) (+)
+    e1 :-: e2 -> bin e1 e2 $ numOp2 (-) (-)
+    e1 :*: e2 -> bin e1 e2 $ numOp2 (*) (*)
+    e1 :/: e2 -> bin e1 e2 $ divOp2
     
     Not e     -> unary e   $ boolOp1 not
     Var varR  -> evalVarReference varR
@@ -148,10 +148,11 @@ evalVarReference ident = getVarValue ident
 evalConstant :: Constant -> HEval Value
 evalConstant c =
   case c of
-    ConstNum  n -> return (IntVal n)
-    ConstBool b -> return (BoolVal b)
-    ConstStr  s -> return (StringVal s)
-    _           -> error $ "Monad.evalConstant" ++ show c
+    ConstNum (IntNum i)   -> return (IntVal i)
+    ConstNum (FloatNum f) -> return (FloatVal f)
+    ConstBool b           -> return (BoolVal b)
+    ConstStr  s           -> return (StringVal s)
+    _                     -> error $ "Monad.evalConstant" ++ show c
 
 
 evalPascalFunc :: Identifier -> FunctionInstance -> [Value] -> HEval Value

@@ -26,11 +26,13 @@ import Prelude hiding (fail)
 data Type = 
    IntegerT     -- ^ Inteiro
  | BooleanT     -- ^ Booleano
+ | FloatT
  | StringT
  | UnknownType  -- ^ Tipo indefinido
  deriving (Eq)
  
 instance (Show Type) where
+  show FloatT      = "real"
   show IntegerT    = "integer"
   show BooleanT    = "boolean"
   show StringT     = "string"
@@ -73,6 +75,7 @@ fail msg t = Left $ "Expected " ++ msg ++ ", got " ++ show t
 -- | Indica se um tipo e numerico
 isNumeric    :: Type -> Bool
 isNumeric IntegerT = True
+isNumeric FloatT   = True
 isNumeric _        = False
 
 
@@ -81,8 +84,9 @@ isNumeric _        = False
 
 -- | Operador numerico unario (ex: menos unario)
 cNumOp1  :: UnaryCoercion
-cNumOp1 IntegerT = suceed IntegerT
-cNumOp1 t        = fail "a numeric type" t
+cNumOp1 t
+ | isNumeric t = suceed t
+ | otherwise   = fail "a numeric type" t
 
 
 -- | Operador booleano unario (ex: not)
@@ -93,21 +97,33 @@ cBoolOp1 t        = fail "a boolean type" t
 
 -- | Operador numerico binario normal (ex: *, +, -)
 cNumOp2  :: BinaryCoercion
-cNumOp2 t1 t2 = case (t1, t2) of
-  (IntegerT, IntegerT) -> suceed IntegerT
-  _                    -> fail "two numeric types on operation" (t1,t2)
+cNumOp2 IntegerT FloatT   = suceed FloatT
+cNumOp2 FloatT   IntegerT = suceed FloatT
+cNumOp2 t1 t2
+ | t1 == t2 && isNumeric t1 = suceed t1
+ | otherwise                =
+    fail "two numeric types on numeric operation" (t1,t2)
+
+cDivOp2 :: BinaryCoercion
+cDivOp2 t1 t2
+  | all isNumeric [t1,t2] = suceed FloatT
+  | otherwise             =
+    fail "two numeric types on numeric operation" (t1, t2)
 
 
 -- | Operador booleano binario normal (ex: and, or)
 cBoolOp2 :: BinaryCoercion
 cBoolOp2 BooleanT BooleanT = suceed BooleanT
-cBoolOp2 t1 t2             = fail "two boolean types on operation" (t1, t2)
+cBoolOp2 t1 t2             =
+    fail "two boolean types on boolean operation" (t1, t2)
 
 
 -- | Operador relacional binario normal (ex: <)
 cRelOp2  :: BinaryCoercion
-cRelOp2 IntegerT IntegerT = suceed BooleanT
-cRelOp2 t1 t2             = fail "two numeric types" (t1, t2)
+cRelOp2 t1 t2
+ | all isNumeric [t1,t2] = suceed BooleanT
+ | otherwise             =
+    fail "two numeric types on relational operation" (t1, t2)
 
 
 -- | Operador binario de igualdade
@@ -122,4 +138,4 @@ cAssign :: BinaryCoercion
 cAssign t1 t2
   | t1 == t2  = suceed t1
   | otherwise = fail "two compatible types" (t1, t2)
-            
+        

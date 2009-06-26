@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
 
 module Language.Builtins where
 
@@ -22,6 +23,7 @@ builtinTypeT = fromList [
      ("integer", IntegerT)
    , ("boolean", BooleanT)
    , ("string" , StringT)
+   , ("real"   , FloatT)
   ]
 
 builtinProcT :: ProcedureTable
@@ -33,16 +35,19 @@ builtinProcT = fromList [
 builtinFuncT :: FunctionTable
 builtinFuncT = fromList [
       ("pow"    , pow)
+    , ("round"  , round')
     , ("readInt", readInt)
    ]
 
 
 -- * Utils
 
+
 haskellProc :: ([Type] -> Bool)       -- ^ checagem da assinatura
             -> ([Value] -> IO ())     -- ^ procedimento na monad IO
             -> Procedure
 haskellProc c f   = HaskellProc c (liftIO . f)
+
 
 haskellFunc :: ([Type] -> Bool)       -- ^ checagem da assinatura
             -> Type                   -- ^ tipo de retorno da funcao
@@ -50,6 +55,12 @@ haskellFunc :: ([Type] -> Bool)       -- ^ checagem da assinatura
             -> Function
 haskellFunc c t f = HaskellFunc c t (liftIO . f)
 
+
+pureHaskellFunc :: ([Type] -> Bool)   -- ^ checagem da assinatura
+                -> Type               -- ^ tipo de retorno
+                -> ([Value] -> Value) -- ^ funcao pura
+                -> Function
+pureHaskellFunc c t f = HaskellFunc c t (return . f)
 
 
 -- * Procedimentos pre-definidos
@@ -77,20 +88,29 @@ writeln = haskellProc check fun
 -- * Funções pré-definidas
 
 
-pow :: Function
-pow = haskellFunc check IntegerT fun
- where
-  check [IntegerT, IntegerT] = True
-  check _                    = False
-  
-  fun [IntVal a, IntVal b]   = return (IntVal (a ^ b))
-
-
 readInt :: Function
 readInt = haskellFunc check IntegerT fun
  where
   check [] = True
   check _  = False
   
-  fun [] = do num <- readLn
-              return (IntVal num)
+  fun []   = do num <- readLn
+                return (IntVal num)
+
+
+pow :: Function
+pow = pureHaskellFunc check IntegerT fun
+ where
+  check [IntegerT, IntegerT] = True
+  check _                    = False
+  
+  fun [IntVal a, IntVal b]   = IntVal (a ^ b)
+
+
+round' :: Function
+round' = pureHaskellFunc check IntegerT fun
+ where
+  check [FloatT]   = True
+  check _          = False
+  
+  fun [FloatVal n] = IntVal (round n)

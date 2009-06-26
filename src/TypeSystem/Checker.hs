@@ -273,7 +273,7 @@ infer e =
   e1 :*: e2   -> binaryInf cNumOp2 e1 e2
   e1 :-: e2   -> binaryInf cNumOp2 e1 e2
   e1 :+: e2   -> binaryInf cNumOp2 e1 e2
-  e1 :/: e2   -> binaryInf cNumOp2 e1 e2
+  e1 :/: e2   -> binaryInf cDivOp2 e1 e2
   
   e1 :<>: e2  -> binaryInf cEqOp2 e1 e2
   e1 :>=: e2  -> binaryInf cRelOp2 e1 e2
@@ -305,9 +305,10 @@ infer e =
 --  - Log de erros na checagem de tipos
  
 constInf :: Constant -> HParser Type
-constInf (ConstNum  _) = return IntegerT
 constInf (ConstBool _) = return BooleanT
 constInf (ConstStr  _) = return StringT
+constInf (ConstNum (FloatNum _)) = return FloatT
+constInf (ConstNum (IntNum _))   = return IntegerT
 constInf _             = error "TypeChecker.constInf"
 
 unaryInf  :: UnaryCoercion

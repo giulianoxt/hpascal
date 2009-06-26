@@ -1,26 +1,34 @@
 program FibTest;
 
-  var n : integer = 7;
-  var a, b, tmp, i : integer;
+var
+ i    : integer;
+ done : boolean;
 
-  procedure ProcTes (a : integer = 3);
-  begin
-    a := 1;
-  end;
+function fib (n : integer) : integer;
+var
+  j, k : integer;
+begin
+  if n = 1 then
+    fib := 1
+  else if n = 2 then
+    fib := 1
+  else
+    fib := fib(n-1) + fib(n-2)
+end
 
 begin
+ done := false;
 
-  a := 1;
-  b := 1;
+ while not done do
+ begin
+  write("i: ");
+  i := readInt();
 
-  for i := 0 to (n-2) do
-  begin
-    tmp := a;
-    b := a + b;
-    a := tmp
-  end;
-
- writeln(b);
+  if i = 0 then
+    done := true
+  else
+    writeln("fib(",i,") = ", fib(i))
+ end;
 
 end.
 

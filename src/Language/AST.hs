@@ -175,7 +175,11 @@ data Constant =
 
 -- * Fatores simples
 
-type Number = Int
+data Number =  
+   IntNum   Int
+ | FloatNum Float
+ deriving (Show, Eq)
+
 
 -- | Operador de atribuicao ('Assignment').
 -- Pode ser: "+=", "-=", ":=", "/=", "*="

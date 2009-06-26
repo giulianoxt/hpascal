@@ -410,10 +410,12 @@ constBoolean =
 
 
 -- | Numero literal
-constNumber :: HParser Int
+constNumber :: HParser Number
 constNumber =
-   do Left n <- T.number
-      return (fromIntegral n)
+   do num <- T.number
+      return $ case num of
+                 Left  n -> IntNum (fromIntegral n)
+                 Right n -> FloatNum (realToFrac n)
 
 
 identifierExpr :: HParser Expr
