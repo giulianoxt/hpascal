@@ -55,7 +55,9 @@ builtinFuncT = fromList [
     , ("sqrt", sqrt')
     , ("log", log')
     , ("not", not')	
-   ]
+    , ("succ", succ')
+    , ("pred", pred')
+	]
 
 
 -- * Utils
@@ -269,3 +271,19 @@ not' = pureHaskellFunc check BooleanT fun
 		check _ = False
 		
 		fun [BoolVal n] = BoolVal (Prelude.not n)
+
+succ' :: Function
+succ' = pureHaskellFunc check IntegerT fun
+	where
+		check [IntegerT] = True
+		check _ = False
+		
+		fun [IntVal n] = IntVal (n+1)
+		
+pred' :: Function
+pred' = pureHaskellFunc check IntegerT fun
+	where
+		check [IntegerT] = True
+		check _ = False
+		
+		fun [IntVal n] = IntVal (n-1)
