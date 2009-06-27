@@ -27,6 +27,7 @@ builtinTypeT = fromList [
    , ("boolean", BooleanT)
    , ("string" , StringT)
    , ("real"   , FloatT)
+   , ("char"   , CharT)
   ]
 
 builtinProcT :: ProcedureTable

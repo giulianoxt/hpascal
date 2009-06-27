@@ -95,13 +95,11 @@ evalStatement (For update' ident e1 e2 stmt) =
      v2 <- evalExpr e2
      evalFor v1 v2
  where
-  evalStmt     = evalStatement stmt
-  
-  evalAssign v = insertVal ident v
+  evalAssign e = evalStatement (Assignment ident e)
  
-  evalFor va@(IntVal a) vb@(IntVal b) =
-    let go f = do evalAssign va
-                  evalStmt
+  evalFor (IntVal a) vb@(IntVal b) =
+    let go f = do evalAssign $ ConstExpr $ ConstNum $ IntNum a
+                  evalStatement stmt
                   evalFor (IntVal (f a)) vb in
     case update' of
       To     | a <= b -> go (\x -> x + 1)  -- (+1) n pega
@@ -182,6 +180,7 @@ evalConstant c =
     ConstNum (IntNum i)   -> return (IntVal i)
     ConstNum (FloatNum f) -> return (FloatVal f)
     ConstBool b           -> return (BoolVal b)
+    ConstChar x           -> return (CharVal x)
     ConstStr  s           -> return (StringVal s)
     _                     -> error $ "Monad.evalConstant" ++ show c
 

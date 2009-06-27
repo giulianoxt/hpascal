@@ -335,6 +335,7 @@ infer e =
 constInf :: Constant -> HParser Type
 constInf (ConstBool _) = return BooleanT
 constInf (ConstStr  _) = return StringT
+constInf (ConstChar _) = return CharT
 constInf (ConstNum (FloatNum _)) = return FloatT
 constInf (ConstNum (IntNum _))   = return IntegerT
 constInf _             = error "TypeChecker.constInf"

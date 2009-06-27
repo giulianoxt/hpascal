@@ -10,6 +10,7 @@ import Data.Map
 data Value =
    IntVal  Int
  | BoolVal Bool
+ | CharVal Char
  | FloatVal Float
  | StringVal String
  
@@ -20,6 +21,7 @@ type ValueTable = Map Identifier Value
 instance Show Value where
   show (IntVal  n)   = show n
   show (BoolVal b)   = show b
+  show (CharVal c)   = [c]
   show (FloatVal f)  = show f
   show (StringVal s) = s
 
@@ -28,6 +30,7 @@ defVal :: Type -> Value
 defVal IntegerT = IntVal    0
 defVal FloatT   = FloatVal  0.0
 defVal BooleanT = BoolVal   False
+defVal CharT    = CharVal ' '
 defVal StringT  = StringVal ""
 defVal _        = error "Eval.Values.defVal"
 

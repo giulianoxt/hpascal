@@ -27,6 +27,7 @@ data Type =
    IntegerT     -- ^ Inteiro
  | BooleanT     -- ^ Booleano
  | FloatT
+ | CharT
  | StringT
  | UnknownType  -- ^ Tipo indefinido
  deriving (Eq)
@@ -36,6 +37,7 @@ instance (Show Type) where
   show IntegerT    = "integer"
   show BooleanT    = "boolean"
   show StringT     = "string"
+  show CharT       = "char"
   show UnknownType = "UnknownType"
 
 

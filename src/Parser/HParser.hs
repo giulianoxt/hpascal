@@ -424,6 +424,7 @@ constant =
      ConstNum  `liftM` constNumber
  <|> ConstBool `liftM` constBoolean
  <|> ConstStr  `liftM` T.stringLiteral
+ <|> ConstChar `liftM` T.charLiteral
 
 
 -- | Booleano literal
