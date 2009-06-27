@@ -58,6 +58,8 @@ builtinFuncT = fromList [
     , ("not", not')	
     , ("succ", succ')
     , ("pred", pred')
+	, ("ord", ord')
+	, ("chr", chr')	
 	]
 
 
@@ -288,3 +290,20 @@ pred' = pureHaskellFunc check IntegerT fun
 		check _ = False
 		
 		fun [IntVal n] = IntVal (n-1)
+		
+ord' :: Function
+ord' = pureHaskellFunc check IntegerT fun
+	where
+		check [CharT] = True
+		check _ = False
+		
+		fun [CharVal n] = IntVal (Data.Char.ord n)
+		
+chr' :: Function
+chr' = pureHaskellFunc check CharT fun
+	where
+		check [IntegerT] = True
+		check _ = False
+		
+		fun [IntVal n] = CharVal (Data.Char.chr n)
+		
