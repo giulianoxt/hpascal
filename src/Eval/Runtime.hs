@@ -44,12 +44,11 @@ defaultRuntimeData = RuntimeData { refEnv = [builtinActiveScope] }
    builtinStaticData = head $ staticT initialState
 
 
-
 getRefEnv :: (MonadState RuntimeData m) => m ReferenceEnv
 getRefEnv = liftM refEnv get
 
-getHeadScope :: RuntimeData -> Scope
-getHeadScope = scopeA . head . refEnv
+getHeadScope :: (MonadState RuntimeData m) => m Scope
+getHeadScope = liftM (scopeA . head) getRefEnv
 
 getHeadSymT ::(MonadState RuntimeData m) => m SymbolTable
 getHeadSymT = liftM (symT . head) getRefEnv
@@ -85,10 +84,9 @@ modifyRefEnv f = getRefEnv >>= putRefEnv . f
 
 evalNewScope :: (MonadState RuntimeData m) => StaticData -> m a -> m a
 evalNewScope sd eval =
- do runtimeData <- get
- 
-    let scopeNow  = getHeadScope runtimeData
-        scopeNext = scope sd
+ do 
+    scopeNow    <- getHeadScope
+    let scopeNext = scope sd
  
     case cmpScopes scopeNow scopeNext of
      Equal      -> evalEqualScope
@@ -155,10 +153,24 @@ insertDefVal ident =
   do symT' <- getHeadSymT
      valT' <- getHeadValT
      
-     let typeV   = fromJust $ lookup ident symT'
+     let typeV   = varType . fromJust $ lookup ident symT'
          newValT = insert ident (defVal typeV) valT'
      
      putHeadValT newValT
+
+mergeRefTable :: (MonadState RuntimeData m) =>
+                 Map Identifier Reference -> m ()
+mergeRefTable t =
+  do symT' <- getHeadSymT
+     let rl      = toList t
+         newSymT = merge rl symT'
+     putHeadSymT newSymT
+ where
+  merge [] nSymT                = nSymT
+  merge ((varId, ref):vs) nSymT = 
+    let Just vd = lookup varId nSymT
+        vd'     = vd { isReference = Just ref } in
+    merge vs (insert varId vd' nSymT)
 
 
 searchScopes :: (ActiveScope -> Bool)
@@ -182,6 +194,19 @@ insertVal ident val = modifyRefEnv modifyF
                   _             -> error "Eval.Runtime.insertVal"
 
 
+insertRefVal :: (MonadState RuntimeData m) =>
+                Reference -> Value -> m ()
+insertRefVal (StackReference sc varId) val = modifyRefEnv modifyF
+ where
+  insertV as = ((), as { valT = insert varId val (valT as) })
+  
+  modifyF re = case searchScopes searchScope insertV re of
+                (Just _, re') -> re'
+                _             -> error "Eval.Runtime.insertRefVal"
+ 
+  searchScope = (== sc) . scopeA
+  
+
 getVarValue :: (MonadState RuntimeData m) => Identifier -> m Value
 getVarValue ident = 
   do refEnv' <- getRefEnv
@@ -202,6 +227,30 @@ getProcedure ident =
       _           -> error "Eval.Runtime.getProcedure"
  where
   f as = (p, as) where Just p = lookup ident (procT as)
+
+
+getVarDescriptor :: (MonadState RuntimeData m) =>
+                    Identifier
+                 -> m VariableDescriptor
+getVarDescriptor varId =
+  do refEnv' <- getRefEnv
+     case searchScopes (containsVar varId) f refEnv' of
+      (Just vd, _) -> return vd
+      _            -> error "Eval.Runtime.getVarDescriptor"
+ where
+  f as = (vd, as) where Just vd = lookup varId (symT as)
+
+
+getVarScope :: (MonadState RuntimeData m) =>
+               Identifier
+            -> m Scope
+getVarScope varId =
+  do refEnv' <- getRefEnv
+     case searchScopes (containsVar varId) f refEnv' of
+      (Just sc, _) -> return sc
+      _            -> error "Eval.Runtime.getVarDescriptor"
+ where
+  f as = (scopeA as, as)
 
 
 getFunction :: (MonadState RuntimeData m) =>
@@ -225,3 +274,15 @@ containsProc ident = (member ident) . procT
 containsFunc :: Identifier -> ActiveScope -> Bool
 containsFunc ident = (member ident) . funcT
 
+
+data RuntimeParameter =
+   ExprParameter {
+     exprParamValue :: Value
+   }
+ | VarParameter {
+     paramId    :: Identifier
+   , paramRef   :: Maybe Reference
+   , paramScope :: Scope
+   , paramValue :: Value 
+  }
+ deriving (Show)

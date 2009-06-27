@@ -38,7 +38,10 @@ data UsesClause = UsesClause [Identifier]
 --
 -- Contem uma secao de declaracoes e um 'CompoundStatement'.
 data Block = Block DeclarationPart Statement [StaticData]
- deriving (Show)
+
+instance (Show Block) where
+  show (Block decls stmt _) =
+   "Block " ++ show decls ++ " " ++ show stmt
 
 -- * Declaracoes
 
@@ -210,13 +213,25 @@ type TypeTable   = Map Identifier Type
 --
 -- Nao guardamos o valor atual da variavel, por exemplo, pois as tabelas
 -- deste modulo so serao utilizadas durante o parsing.
-type SymbolTable = Map Identifier Type
+type SymbolTable = Map Identifier VariableDescriptor
 
 
 type ProcedureTable = Map String Procedure
 
+
 type FunctionTable  = Map String Function
 
+
+data VariableDescriptor = VarDescriptor {
+   varType     :: Type
+ , isConst     :: Bool
+ , isReference :: Maybe Reference
+} deriving (Show)
+
+data Reference = StackReference {
+   refScope :: Scope
+ , refVar   :: Identifier
+} deriving (Show)
 
 data StaticData = StaticData {
     stSymT  :: SymbolTable

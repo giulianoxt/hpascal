@@ -73,10 +73,11 @@ block =
 -- comecando com keywords e contendo uma outra lista de declaracoes.
 declarations :: HParser DeclarationPart
 declarations =
-  do varL   <- optSection varDeclarations
+  do constL <- optSection constDeclarations
+     varL   <- optSection varDeclarations
      rdecls <- T.semiSep routineDecl
      
-     return (DeclPart [] [] varL rdecls)
+     return (DeclPart constL [] varL rdecls)
 
  where -- | Recebe um parser para uma declaracao,
        -- e monta um parser para uma secao opcional de declaracoes
@@ -102,12 +103,33 @@ varDeclarations = liftM concat (many1 varDeclaration)
            T.symbol ":"
            typeV  <- parseType
      
-           mexpr <- (T.symbol "=" >> liftM Just expression)
-                 <|> return Nothing
+           mexpr <- option Nothing $ T.symbol "=" >> liftM Just expression
      
            let dec = VarDec varIdl typeV mexpr
      
            processVarDecl dec
+           return dec
+
+
+constDeclarations :: HParser [ConstantDeclaration]
+constDeclarations = liftM concat (many1 constDeclaration)
+ where constDeclaration =
+        do T.reserved "const"
+           T.semiSep1 singleConstDecl
+        <?> "constant declaration"
+       
+       singleConstDecl =
+        do varId  <- T.identifier
+          
+           T.symbol ":"
+           typeV  <- option Nothing $ liftM Just parseTypeIdentifier
+           
+           T.symbol "="
+           expr   <- expression
+           
+           let dec = ConstDec varId typeV expr
+           
+           processConstDecl dec
            return dec
 
 
@@ -275,12 +297,14 @@ forStmt =
      T.symbol ":="
      
      expr1  <- expression
+     checkOrdinalExpr expr1
      checkAssignExpr varId expr1
      
      update <-  (T.reserved "to"     >> return To)
             <|> (T.reserved "downto" >> return Downto)   
             
      expr2  <- expression
+     checkOrdinalExpr expr2
      checkAssignExpr varId expr2
 
      T.reserved "do"

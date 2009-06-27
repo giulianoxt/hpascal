@@ -1,3 +1,4 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
 
 module Language.Builtins where
@@ -6,9 +7,11 @@ import Eval.Values
 import Language.AST
 import TypeSystem.Types
 
+import Data.Char
 import Data.Map (fromList, empty)
 
-import System.IO (hFlush, stdout)
+import System.IO
+import Control.Exception
 import Control.Monad.Trans (liftIO)
 
 
@@ -34,23 +37,24 @@ builtinProcT = fromList [
 
 builtinFuncT :: FunctionTable
 builtinFuncT = fromList [
-      ("pow"    , pow)
+      ("readint", readint)
+    , ("readfloat", readfloat)
+    , ("pow"    , pow)
     , ("round"  , round')
-    , ("readInt", readInt)
-	, ("sin", sin')
-	, ("cos", cos')	
-	, ("tan", tan')		
-	, ("arcsin", arcsin)
-	, ("arccos", arccos)
-	, ("arctan", arctan)	
-	, ("odd", odd')	
-	, ("even", even')	
-	, ("absi", absi)
-	, ("absf", absf)
-	, ("sqr", sqr')
-	, ("sqrt", sqrt')
-	, ("log", log')
-	, ("not", not')	
+    , ("sin", sin')
+    , ("cos", cos')	
+    , ("tan", tan')		
+    , ("arcsin", arcsin)
+    , ("arccos", arccos)
+    , ("arctan", arctan)	
+    , ("odd", odd')	
+    , ("even", even')	
+    , ("absi", absi)
+    , ("absf", absf)
+    , ("sqr", sqr')
+    , ("sqrt", sqrt')
+    , ("log", log')
+    , ("not", not')	
    ]
 
 
@@ -102,14 +106,36 @@ writeln = haskellProc check fun
 -- * Funções pré-definidas
 
 
-readInt :: Function
-readInt = haskellFunc check IntegerT fun
+readint :: Function
+readint = haskellFunc check IntegerT fun
+ where
+  check [] = True
+  check _  = False
+  
+  fun []   = do skip isSpace
+                num <- skip isDigit
+                return (IntVal (read num))
+  
+  skip f   = do look <- try $ hLookAhead stdin
+                case look of
+                 Left (_ :: IOError) -> return []
+                 Right c
+                  | f c              ->
+                         do hGetChar stdin
+                            cs <- skip f
+                            return (c : cs)
+                  | otherwise        ->
+                         return []
+
+
+readfloat :: Function
+readfloat = haskellFunc check FloatT fun
  where
   check [] = True
   check _  = False
   
   fun []   = do num <- readLn
-                return (IntVal num)
+                return (FloatVal num)
 
 
 pow :: Function
@@ -242,4 +268,4 @@ not' = pureHaskellFunc check BooleanT fun
 		check [BooleanT] = True
 		check _ = False
 		
-		fun [BoolVal n] = BoolVal (Prelude.not n)		
+		fun [BoolVal n] = BoolVal (Prelude.not n)

@@ -18,7 +18,6 @@ import Language.Scope (Scope, enterScope)
 
 import Control.Monad (liftM, when)
 
-import Data.Maybe (fromJust)
 import Data.List (intercalate)
 import Prelude hiding (lookup)
 import Data.Map hiding (null, map)
@@ -55,11 +54,13 @@ data CompError = CompError SourcePos ErrorMsg
 
 -- | Descricao de uma mensagem de erro de compilacao
 data ErrorMsg  =
-   TypeError             String  -- ^ Erro de tipo
- | UnknownIdentifier     String  -- ^ Identificador nao reconhecido
- | IdentifierAlreadyUsed String  -- ^ Declaracao dupla de identificador
- | WrongCallSignature    String  -- ^ Chamada errada de funcao
- | AmbiguousCall         String  -- ^ Chamada ambigua de funcao
+   TypeError              String  -- ^ Erro de tipo
+ | UnknownIdentifier      String  -- ^ Identificador nao reconhecido
+ | IdentifierAlreadyUsed  String  -- ^ Declaracao dupla de identificador
+ | WrongCallSignature     String  -- ^ Chamada errada de funcao
+ | AmbiguousCall          String  -- ^ Chamada ambigua de funcao
+ | ConstAssignment        String
+ | ReferenceAssignment    String
  | MultipleInitialization
 
 
@@ -83,6 +84,10 @@ instance Show ErrorMsg where
     "No signature match for " ++ msg
   show (AmbiguousCall msg)         =
     "Multiple matches in call signature for " ++ msg
+  show (ConstAssignment msg)       =
+    "Assignment to const variable: " ++ msg
+  show (ReferenceAssignment msg)   =
+    "Default value given to var reference: " ++ msg
 
 
 -- | Engloba um string em aspas duplas
@@ -121,11 +126,9 @@ searchIdentifier :: (Ord a) =>
                 -> [StaticData]
                 -> Maybe b
 searchIdentifier _ _ []      = Nothing
-searchIdentifier k m (sd:ss) =
-  if member k t then
-    Just (fromJust look)
-   else
-     searchIdentifier k m ss
+searchIdentifier k m (sd:ss)
+  | member k t = look
+  | otherwise  = searchIdentifier k m ss
  where
   t    = m sd
   look = lookup k t
@@ -133,8 +136,16 @@ searchIdentifier k m (sd:ss) =
 lookupVarIdent :: Identifier -> HParser (Maybe Type)
 lookupVarIdent ident =
   do l <- getStaticData
-     return $ searchIdentifier ident stSymT l
+     return $ case searchIdentifier ident stSymT l of
+               Nothing   -> Nothing
+               Just varD -> Just (varType varD)
 
+isConstVar :: Identifier -> HParser Bool
+isConstVar varId =
+  do l <- getStaticData
+     case searchIdentifier varId stSymT l of
+      Just (VarDescriptor _ True _) -> return True
+      _                             -> return False
 
 lookupTypeIdent :: Identifier -> HParser (Maybe Type)
 lookupTypeIdent ident = 
@@ -156,14 +167,14 @@ lookupFuncIdent ident =
 
 -- | Insere o par (identificador, tipo) na tabela de simbolos,
 -- sem se preocupar se o simbolo ja estava presente
-updateSymT :: Identifier -> Type -> HParser ()
-updateSymT symId typeV = updateState $ \st -> 
+updateSymT :: Identifier -> VariableDescriptor -> HParser ()
+updateSymT symId varD = updateState $ \st -> 
    let
       staticTable = staticT st
       headScope   = head staticTable
       tailScopes  = tail staticTable
       symbolTable = stSymT headScope
-      newSymTable = insert symId typeV symbolTable
+      newSymTable = insert symId varD symbolTable
     in
    st { staticT = headScope { stSymT = newSymTable } : tailScopes } 
 
@@ -179,7 +190,7 @@ updateTypeT typeId typeV = updateState $ \st ->
       typeTable    = stTypeT headScope
       newTypeTable = insert typeId typeV typeTable
     in
-   st { staticT = headScope { stSymT = newTypeTable } : tailScopes }
+   st { staticT = headScope { stTypeT = newTypeTable } : tailScopes }
 
 
 updateProcT :: Bool -> StaticData -> RoutineDeclaration -> HParser ()

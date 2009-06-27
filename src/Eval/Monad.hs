@@ -6,8 +6,10 @@ import Eval.Runtime
 import Language.AST
 import Language.Basic
 
-import Control.Monad.State
+import Data.Maybe
 import Data.Map hiding (map)
+
+import Control.Monad.State
 
 
 type HEval a = StateT RuntimeData IO a
@@ -53,19 +55,23 @@ evalStatement (Nop) = return ()
 evalStatement (Compound stmtl) =
   mapM_ evalStatement stmtl
 
-evalStatement (Assignment ident expr) =
+evalStatement (Assignment varId expr) =
   do value <- evalExpr expr
-     insertVal ident value
+    
+     varD  <- getVarDescriptor varId
+     
+     case isReference varD of
+      Nothing -> insertVal varId value
+      Just r  -> insertRefVal r value
 
 evalStatement (FunctionReturn fId expr) =
   evalStatement (Assignment fId expr)
  
 evalStatement (ProcedureCall ident exprs sigPos) =
   do proc    <- getProcedure ident
-     params  <- mapM evalExpr exprs
      case proc of
-      (Procedure sigs)  -> evalPascalProc (sigs !! sigPos) params
-      (HaskellProc _ _) -> evalHaskellProc proc params
+      (Procedure sigs)  -> evalPascalProc (sigs !! sigPos) exprs
+      (HaskellProc _ _) -> evalHaskellProc proc exprs
 
 evalStatement (If e st1 st2) =
   do BoolVal b <- evalExpr e
@@ -84,23 +90,49 @@ evalStatement while@(While e stmt) =
      when b $ evalStatement stmt >>
               evalStatement while
 
-evalStatement s = error $ "Monad.evalStatement: " ++ show s
-
+evalStatement (For update' ident e1 e2 stmt) =
+  do v1 <- evalExpr e1
+     v2 <- evalExpr e2
+     evalFor v1 v2
+ where
+  evalStmt     = evalStatement stmt
   
-evalPascalProc :: ProcedureInstance -> [Value] -> HEval ()
+  evalAssign v = insertVal ident v
+ 
+  evalFor va@(IntVal a) vb@(IntVal b) =
+    let go f = do evalAssign va
+                  evalStmt
+                  evalFor (IntVal (f a)) vb in
+    case update' of
+      To     | a <= b -> go (\x -> x + 1)  -- (+1) n pega
+      Downto | a >= b -> go (\x -> x - 1)  -- nem (-1). wtf?
+      _               -> return ()
+   
+  evalFor _ _ = error "Eval.Monad.evalStatement.evalFor"
+
+
+evalStatement s = error $ "Eval.Monad.evalStatement: " ++ show s
+
+
+evalPascalProc :: ProcedureInstance -> [Expr] -> HEval ()
 evalPascalProc procSig params = 
   do let ProcInstance sig block  = procSig
          Block decls stmt (sd:_) = block
      
-     valT'   <- substParams params sig
+     rParams       <- runtimeParameters params
+     
+     (refT, valT') <- substParams rParams sig
      
      evalNewScope sd $ do putHeadValT valT'
+                          mergeRefTable refT
                           evalDeclarations decls
                           evalStatement stmt
 
 
-evalHaskellProc :: Procedure -> [Value] -> HEval ()
-evalHaskellProc (HaskellProc _ f) vs = f vs
+evalHaskellProc :: Procedure -> [Expr] -> HEval ()
+evalHaskellProc (HaskellProc _ f) exprs =
+  do params <- mapM evalExpr exprs
+     f params
 evalHaskellProc _ _ = error "Monad.evalHaskellProc"
 
 
@@ -126,10 +158,9 @@ evalExpr expr =
    
     FunctionCall ident exprs sigPos ->
       do func   <- getFunction ident
-         params <- mapM evalExpr exprs
          case func of
-          (Function sigs)     -> evalPascalFunc ident (sigs !! sigPos) params
-          (HaskellFunc _ _ _) -> evalHaskellFunc func params
+          (Function sigs)     -> evalPascalFunc ident (sigs !! sigPos) exprs
+          (HaskellFunc _ _ _) -> evalHaskellFunc func exprs
     
     _         -> error $ "Eval.Monad.evalExpr: " ++ show expr
     
@@ -155,48 +186,104 @@ evalConstant c =
     _                     -> error $ "Monad.evalConstant" ++ show c
 
 
-evalPascalFunc :: Identifier -> FunctionInstance -> [Value] -> HEval Value
+evalPascalFunc :: Identifier -> FunctionInstance -> [Expr] -> HEval Value
 evalPascalFunc fId funcSig params =
   do let FuncInstance sig block t = funcSig
          Block decls stmt (sd:_)  = block
+         
+         oldSymT        = stSymT sd
+         funcDescriptor = VarDescriptor t False Nothing
+         symTWithFunc   = fromList [(fId, funcDescriptor)]
+         newSymT        = union oldSymT symTWithFunc
      
-     paramsValT <- substParams params sig
+     rParams       <- runtimeParameters params
      
-     let symT'       = union (stSymT sd) (fromList [(fId, t)])
-         paramsValT' = insert fId (defVal t) paramsValT
+     (refT, valT') <- substParams rParams sig
+     
+     let symT'       = newSymT
+         paramsValT' = insert fId (defVal t) valT'
      
      evalNewScope sd $ do putHeadSymT symT'
                           putHeadValT paramsValT'
+                          mergeRefTable refT
+                          
                           evalDeclarations decls
                           evalStatement stmt
                           getVarValue fId
 
 
-evalHaskellFunc :: Function -> [Value] -> HEval Value
-evalHaskellFunc (HaskellFunc _ _ f) vs = f vs
+evalHaskellFunc :: Function -> [Expr] -> HEval Value
+evalHaskellFunc (HaskellFunc _ _ f) exprs =
+  do params <- mapM evalExpr exprs
+     f params
 evalHaskellFunc _ _ = error "Eval.Monad.evalHaskellFunc"
 
 
-substParams :: [Value] -> [Parameter] -> HEval ValueTable
-substParams vals params = match vals params empty
+substParams :: [RuntimeParameter]
+            -> [Parameter]
+            -> HEval (Map Identifier Reference, ValueTable)
+substParams vals params = match vals params (empty, empty)
  where
   -- fim
-  match [] [] t = return t
+  match [] [] ts = return ts
   
   -- passando pra outra secao
-  match vs ((Parameter _ [] _ _):ps) t =
-    match vs ps t
+  match vs ((Parameter _ [] _ _):ps) ts = match vs ps ts
   
   -- usando parametro default
-  match [] ((Parameter _ [ident] _ (Just expr)):ps) t =
+  match [] ((Parameter _ [ident] _ (Just expr)):ps) (rt,vt) =
     do val <- evalExpr expr
-       match [] ps (insert ident val t)
+       match [] ps (rt,(insert ident val vt))
+
+  -- passando por referencia
+  match (varP:vs) ((Parameter Reference (ident:idl) typeV ex):ps) (rt,vt) =
+    do 
+       let newParams = Parameter Reference idl typeV ex : ps
+       case varP of
+         ExprParameter _ -> error "subsParams: expression passed as reference"
+         VarParameter _ (Just ref) _ _ -> 
+           do let rt' = insert ident ref rt
+              match vs newParams (rt',vt)
+         VarParameter varId _ sc _   ->
+           do let newRef = StackReference sc varId
+                  rt'    = insert ident newRef rt
+                  vt'    = insert ident (error "subsParams: reference value") vt
+              match vs newParams (rt',vt')
 
  -- usando argumento
-  match (v:vs) ((Parameter m (ident:idl) typeV ex):ps) t =
-    match vs ((Parameter m idl typeV ex):ps) (insert ident v t)
+  match (varP:vs) ((Parameter m (ident:idl) typeV ex):ps) (rt,vt) =
+    do 
+       let newParams = Parameter m idl typeV ex : ps
+           val       = case varP of
+                         ExprParameter v      -> v
+                         VarParameter _ _ _ v -> v
+           vt'       = insert ident val vt
+                         
+       match vs newParams (rt,vt')
   
   match _ _ _ = error "Eval.Monad.substParams"
+
+
+runtimeParameters :: [Expr] -> HEval [RuntimeParameter]
+runtimeParameters = mapM singleParam
+ where
+  singleParam expr@(Var varId) =
+    do varD     <- getVarDescriptor varId
+       varScope <- getVarScope varId
+       
+       let mref = isReference varD
+      
+       let scope' = case mref of 
+                     Nothing -> varScope
+                     Just sr -> refScope sr
+       
+       val <- evalExpr expr
+       return (VarParameter varId mref scope' val)
+      
+  
+  singleParam expr =
+    do val <- evalExpr expr
+       return (ExprParameter val)
 
 
 debug :: String -> HEval ()

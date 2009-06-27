@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -fno-warn-overlapping-patterns #-}
+
 -- | Contem funcoes responsaveis pelas checagens de semantica
 -- estatica de um programa HPascal.
 --
@@ -23,14 +25,24 @@ import Control.Monad (when, forM_)
 -- Resolve o tipo de variavel para um tipo concreto e 
 -- chama 'insertSymbol' para inseri-la na tabela interna
 processVarDecl :: VariableDeclaration -> HParser ()
-processVarDecl (VarDec (_:_:_) _ (Just _)) =
+processVarDecl (VarDec (_:_:_) _ (Just _))=
   logError MultipleInitialization
 processVarDecl (VarDec idl typeV mexpr) =
   forM_ idl $ \varId ->
-    do insertSymbol varId typeV
+    do insertVar varId typeV False Nothing
        case mexpr of
         Just e  -> processAssignment (Assignment varId e) >> return ()
         Nothing -> return ()
+
+
+processConstDecl :: ConstantDeclaration -> HParser ()
+processConstDecl (ConstDec varId mtype expr) =
+  do typeV <- case mtype of
+                Nothing -> infer expr
+                Just t  -> return t
+     
+     insertVar varId typeV True Nothing
+     checkCompatibleExprs (Var varId) expr
 
 
 processParams :: [Parameter] -> HParser ()
@@ -39,12 +51,22 @@ processParams = mapM_ singleParam
   singleParam (Parameter _ (_:_:_) _ (Just _)) =
     logError MultipleInitialization
   
-  singleParam (Parameter Value idl typeV mexpr) =
+  singleParam (Parameter Reference [v] _ (Just _)) =
+    logError $ ReferenceAssignment $ show v
+  
+  singleParam (Parameter mode idl typeV mexpr) =
     forM_ idl $ \varId ->
-      do insertSymbol varId typeV
+      do let insertF = insertVar varId typeV 
+       
+         case mode of
+          Value     -> insertF False Nothing
+          Const     -> insertF True  Nothing
+          Reference -> insertF False $ Just (error "singleParam")
+         
          case mexpr of
-          Just e  -> processAssignment (Assignment varId e) >> return ()
-          Nothing -> return ()
+          Just e    -> do processAssignment (Assignment varId e)
+                          return ()
+          _         -> return ()
   
   singleParam _ = error "TypeSystem.Checker.processParams"
 
@@ -52,12 +74,14 @@ processParams = mapM_ singleParam
 -- | Dado um par (identificador, tipo), tenta inseri-lo
 -- na tabela de simbolos (usando 'updateSymT'), logando um erro
 -- caso o simbolo ja esteja presente la.
-insertSymbol :: Identifier -> Type -> HParser ()
-insertSymbol symId typeV =
+insertVar :: Identifier -> Type -> Bool -> (Maybe Reference) -> HParser ()
+insertVar varId typeV isConst' ref =
   do symTable <- getHeadSymT
-     case lookup symId symTable of
-      Nothing -> updateSymT symId typeV
-      Just _  -> logError (IdentifierAlreadyUsed symId)
+     case lookup varId symTable of
+      Nothing -> updateSymT varId varD
+      Just _  -> logError (IdentifierAlreadyUsed varId)
+ where
+  varD = VarDescriptor typeV isConst' ref
 
 
 processProcCall :: Statement -> HParser Statement
@@ -181,10 +205,14 @@ processAssignment _ = error "TypeSystem.Checker.processAssignment"
 checkBooleanExpr :: Expr -> HParser ()
 checkBooleanExpr = checkExprType BooleanT
 
+checkOrdinalExpr :: Expr -> HParser ()
+checkOrdinalExpr = checkExprType IntegerT
 
 checkAssignExpr :: VariableReference -> Expr -> HParser ()
-checkAssignExpr = checkCompatibleExprs . Var
-
+checkAssignExpr varId e =
+  do checkCompatibleExprs (Var varId) e
+     b <- isConstVar varId
+     when b $ logError (ConstAssignment varId)
 
 checkCaseMatch :: Expr -> CaseMatch -> HParser ()
 checkCaseMatch e m =
