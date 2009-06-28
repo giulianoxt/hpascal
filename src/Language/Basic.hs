@@ -13,9 +13,5 @@ data Number =
 -- Pode ser: "+=", "-=", ":=", "/=", "*="
 type AssignOp = String
 
--- | Referencia para uma variavel, que
--- consiste no identificador da variavel.
-type VariableReference = Identifier
-
 -- | Identificador de alguma entidade.
 type Identifier = String

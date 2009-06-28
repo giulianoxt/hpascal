@@ -247,6 +247,20 @@ data StaticData = StaticData {
   , scope   :: Scope
  } deriving (Show)
 
+data VariableReference =
+   VarRef Identifier
+ | FieldRef VariableReference Identifier
+ deriving (Eq)
+
+baseVarReference :: VariableReference -> Identifier
+baseVarReference (VarRef i) = i
+baseVarReference (FieldRef r _) = baseVarReference r
+
+
+instance (Show VariableReference) where
+  show (VarRef i)          = i
+  show (FieldRef varRef i) = show varRef ++ "." ++ i
+
 -- | Definicao de um procedimento.
 data Procedure =
    Procedure   {
