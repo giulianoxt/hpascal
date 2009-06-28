@@ -100,7 +100,7 @@ data ArrayDeclaration = ArrayDec [(Number, Number)]
 data Statement =
    -- Comandos simples
    Nop                                 -- Nenhuma operacao
- | Assignment VariableReference Expr   -- Atribuição
+ | Assignment VariableReference Expr   -- AtribuiÃ§Ã£o
  | FunctionReturn Identifier Expr      -- Chamada de funcao
  | ProcedureCall Identifier [Expr] Int -- Chamada de procedimento
  
@@ -110,7 +110,7 @@ data Statement =
  -- Comandos estruturados
  | Compound [Statement]                             -- Sequencia de comandos
  | If Expr Statement Statement                      -- if (e) then stmt1 else stmt2
- | For ForUpdate Identifier Expr Expr Statement     -- for i = a (to | downto) b do stmt
+ | For ForUpdate VariableReference Expr Expr Statement     -- for i = a (to | downto) b do stmt
  | Repeat Statement Expr                            -- repeat (stmts) until (expr)
  | While Expr Statement                             -- while (e) stmt
  | With [VariableReference] Statement               -- with v1,v2,v3 do stmt
@@ -212,11 +212,11 @@ type SymbolTable = Map Identifier VariableDescriptor
 
 -- | Tabela que mapeia um identificador ao
 -- procedimento associado a ele.
-type ProcedureTable = Map String Procedure
+type ProcedureTable = Map Identifier Procedure
 
 -- | Tabela que mapeia um identificador a
 -- funcao associada a ele.
-type FunctionTable  = Map String Function
+type FunctionTable  = Map Identifier Function
 
 -- | Descritor de uma variavel. Guarda seu
 -- tipo e outras informacoes relevantes.
@@ -233,7 +233,7 @@ data VariableDescriptor = VarDescriptor {
 -- Guarda seu escopo e seu identificador.
 data Reference = StackReference {
    refScope :: Scope
- , refVar   :: Identifier
+ , refVar   :: VariableReference
 } deriving (Show)
 
 -- | Dados estaticos: um conjunto de tabelas que

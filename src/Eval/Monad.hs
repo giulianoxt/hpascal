@@ -41,7 +41,7 @@ evalVarDeclaration (VarDec idl _ Nothing)         =
   mapM_ insertDefVal idl
 
 evalVarDeclaration (VarDec [ident] _ (Just expr)) =
-  evalStatement (Assignment ident expr)
+  evalStatement (Assignment (VarRef ident) expr)
   
 evalVarDeclaration _                              =
   error "Eval.Monad.evalVarDeclaration"
@@ -55,17 +55,17 @@ evalStatement (Nop) = return ()
 evalStatement (Compound stmtl) =
   mapM_ evalStatement stmtl
 
-evalStatement (Assignment varId expr) =
+evalStatement (Assignment varRef expr) =
   do value <- evalExpr expr
     
-     varD  <- getVarDescriptor varId
+     varD  <- getVarDescriptor varRef
      
      case isReference varD of
-      Nothing -> insertVal varId value
-      Just r  -> insertRefVal r value
+      Nothing -> insertVal varRef value
+      Just r  -> insertRefVal r varRef value
 
 evalStatement (FunctionReturn fId expr) =
-  evalStatement (Assignment fId expr)
+  evalStatement (Assignment (VarRef fId) expr)
  
 evalStatement (ProcedureCall ident exprs sigPos) =
   do proc    <- getProcedure ident
@@ -171,7 +171,12 @@ evalExpr expr =
 
 
 evalVarReference :: VariableReference -> HEval Value
-evalVarReference ident = getVarValue ident
+evalVarReference varRef =
+  do varD <- getVarDescriptor varRef
+     
+     case isReference varD of
+      Nothing -> getVarValue varRef
+      Just r  -> getRefVarValue r varRef
 
 
 evalConstant :: Constant -> HEval Value
@@ -207,7 +212,7 @@ evalPascalFunc fId funcSig params =
                           
                           evalDeclarations decls
                           evalStatement stmt
-                          getVarValue fId
+                          getVarValue (VarRef fId)
 
 
 evalHaskellFunc :: Function -> [Expr] -> HEval Value
@@ -242,8 +247,8 @@ substParams vals params = match vals params (empty, empty)
          VarParameter _ (Just ref) _ _ -> 
            do let rt' = insert ident ref rt
               match vs newParams (rt',vt)
-         VarParameter varId _ sc _   ->
-           do let newRef = StackReference sc varId
+         VarParameter varRef _ sc _   ->
+           do let newRef = StackReference sc varRef
                   rt'    = insert ident newRef rt
                   vt'    = insert ident (error "subsParams: reference value") vt
               match vs newParams (rt',vt')
@@ -265,9 +270,9 @@ substParams vals params = match vals params (empty, empty)
 runtimeParameters :: [Expr] -> HEval [RuntimeParameter]
 runtimeParameters = mapM singleParam
  where
-  singleParam expr@(Var varId) =
-    do varD     <- getVarDescriptor varId
-       varScope <- getVarScope varId
+  singleParam expr@(Var varRef) =
+    do varD     <- getVarDescriptor varRef
+       varScope <- getVarScope varRef
        
        let mref = isReference varD
       
@@ -276,7 +281,7 @@ runtimeParameters = mapM singleParam
                      Just sr -> refScope sr
        
        val <- evalExpr expr
-       return (VarParameter varId mref scope' val)
+       return (VarParameter varRef mref scope' val)
       
   
   singleParam expr =

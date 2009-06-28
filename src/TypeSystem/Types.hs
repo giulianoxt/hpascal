@@ -7,6 +7,9 @@
 
 module TypeSystem.Types where
 
+import Language.Basic
+
+import Data.Map
 import Prelude hiding (fail)
 
 
@@ -29,8 +32,10 @@ data Type =
  | FloatT
  | CharT
  | StringT
+ | RecordT (Map Identifier Type)
  | UnknownType  -- ^ Tipo indefinido
- deriving (Eq)
+ deriving (Eq) 
+ 
  
 instance (Show Type) where
   show FloatT      = "real"
@@ -39,7 +44,7 @@ instance (Show Type) where
   show StringT     = "string"
   show CharT       = "char"
   show UnknownType = "UnknownType"
-
+  show (RecordT m) = "record of " ++ show (toList m)
 
 
 -- * Coercoes

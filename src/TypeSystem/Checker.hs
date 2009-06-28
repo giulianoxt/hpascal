@@ -13,7 +13,8 @@ import Language.Basic
 import Parser.State
 import TypeSystem.Types
 
-import Data.Map (lookup)
+import Data.Map hiding (map)
+import Data.Maybe (fromJust)
 import Prelude hiding (lookup)
 
 import Control.Monad (when, forM_)
@@ -31,8 +32,13 @@ processVarDecl (VarDec idl typeV mexpr) =
   forM_ idl $ \varId ->
     do insertVar varId typeV False Nothing
        case mexpr of
-        Just e  -> processAssignment (Assignment varId e) >> return ()
+        Just e  -> do processAssignment $ Assignment (VarRef varId) e
+                      return ()
         Nothing -> return ()
+
+
+processTypeDecl :: TypeDeclaration -> HParser ()
+processTypeDecl (TypeDec typeId typeV) = insertType typeId typeV
 
 
 processConstDecl :: ConstantDeclaration -> HParser ()
@@ -42,7 +48,7 @@ processConstDecl (ConstDec varId mtype expr) =
                 Just t  -> return t
      
      insertVar varId typeV True Nothing
-     checkCompatibleExprs (Var varId) expr
+     checkCompatibleExprs (Var (VarRef varId)) expr
 
 
 processParams :: [Parameter] -> HParser ()
@@ -64,7 +70,7 @@ processParams = mapM_ singleParam
           Reference -> insertF False $ Just (error "singleParam")
          
          case mexpr of
-          Just e    -> do processAssignment (Assignment varId e)
+          Just e    -> do processAssignment $ Assignment (VarRef varId) e
                           return ()
           _         -> return ()
   
@@ -82,6 +88,13 @@ insertVar varId typeV isConst' ref =
       Just _  -> logError (IdentifierAlreadyUsed varId)
  where
   varD = VarDescriptor typeV isConst' ref
+
+insertType :: Identifier -> Type -> HParser ()
+insertType typeId typeV =
+  do symTable <- getHeadSymT
+     case lookup typeId symTable of
+      Nothing -> updateTypeT typeId typeV
+      Just _  -> logError (IdentifierAlreadyUsed typeId)
 
 
 processProcCall :: Statement -> HParser Statement
@@ -180,25 +193,28 @@ processFuncCall _ = error "TypeSystem.Checker.processFuncCall"
 -- Infere o tipo da expressao do lado direito e da variavel
 -- do lado esquerdo, para checar compatibilidade de atribuicao.
 processAssignment :: Statement -> HParser Statement
-processAssignment assign@(Assignment varRef e) =
+processAssignment assign@(Assignment vr@(VarRef varId) e) =
   do onF <- isOnFunction
      
-     let check'  = checkAssignExpr varRef e >> return assign
-         fReturn = FunctionReturn varRef e 
+     let check'  = checkAssignExpr vr e >> return assign
      
      case onF of
       Nothing -> check'
       Just (fId, t1)
-        | varRef /= fId -> check'
+        | varId /= fId -> check'
         | otherwise     -> do
             t2 <- infer e
             if (t1 /= UnknownType && t2 /= UnknownType) then
               case cAssign t1 t2 of
-                Right _  -> return fReturn
+                Right _  -> return assign
                 Left msg -> logError (TypeError msg) >> return Nop
              else
                return Nop
       
+processAssignment assign@(Assignment varRef e) =
+  do checkAssignExpr varRef e
+     return assign
+
 processAssignment _ = error "TypeSystem.Checker.processAssignment"
 
 
@@ -209,10 +225,14 @@ checkOrdinalExpr :: Expr -> HParser ()
 checkOrdinalExpr = checkExprType IntegerT
 
 checkAssignExpr :: VariableReference -> Expr -> HParser ()
-checkAssignExpr varId e =
-  do checkCompatibleExprs (Var varId) e
-     b <- isConstVar varId
-     when b $ logError (ConstAssignment varId)
+checkAssignExpr varRef e =
+  do checkCompatibleExprs (Var varRef) e
+    
+     case varRef of
+      (VarRef varId) -> do b <- isConstVar varId
+                           when b $ logError (ConstAssignment varId)
+      _              -> return ()
+
 
 checkCaseMatch :: Expr -> CaseMatch -> HParser ()
 checkCaseMatch e m =
@@ -244,13 +264,27 @@ checkExprType typeV expr =
        
        
 getVarType :: VariableReference -> HParser Type
-getVarType varId = 
+getVarType (VarRef varId) = 
   do look <- lookupVarIdent varId
      case look of
       Just t  -> return t
       Nothing -> do logError $ UnknownIdentifier $
                       "var identifier " ++ show varId
                     return UnknownType
+getVarType (FieldRef varRef field) =
+  do refT <- getVarType varRef
+     case refT of
+      UnknownType -> return refT
+      RecordT m
+        | member field m -> return $ fromJust $ lookup field m
+        | otherwise      -> do logError $ InvalidFieldAccess $
+                                 "record " ++ show varRef ++ " has no " 
+                                 ++ field ++ " field"
+                               return UnknownType
+      _           -> do logError $ InvalidFieldAccess $
+                                 "variable " ++ show varRef ++
+                                 " is not a record"
+                        return UnknownType
 
 
 getTypeVal :: Identifier -> HParser Type

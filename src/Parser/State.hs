@@ -61,6 +61,7 @@ data ErrorMsg  =
  | AmbiguousCall          String  -- ^ Chamada ambigua de funcao
  | ConstAssignment        String
  | ReferenceAssignment    String
+ | InvalidFieldAccess     String
  | MultipleInitialization
 
 
@@ -88,11 +89,12 @@ instance Show ErrorMsg where
     "Assignment to const variable: " ++ msg
   show (ReferenceAssignment msg)   =
     "Default value given to var reference: " ++ msg
-
+  show (InvalidFieldAccess  msg)   =
+    "Invalid field access: " ++ msg
 
 -- | Engloba um string em aspas duplas
--- quoted :: String -> String
--- quoted = (++ "\"") . ('"' :)
+quoted :: String -> String
+quoted = (++ "\"") . ('"' :)
 
 
 -- | Extrai uma representacao dos erros de compilacao

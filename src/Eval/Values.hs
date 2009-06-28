@@ -5,6 +5,7 @@ import Language.Basic
 import TypeSystem.Types
 
 import Data.Map
+import Prelude hiding (map)
 
 
 data Value =
@@ -13,6 +14,7 @@ data Value =
  | CharVal Char
  | FloatVal Float
  | StringVal String
+ | RecordVal (Map Identifier Value)
  
 type ValueTable = Map Identifier Value
 
@@ -24,15 +26,17 @@ instance Show Value where
   show (CharVal c)   = [c]
   show (FloatVal f)  = show f
   show (StringVal s) = s
+  show (RecordVal m) = "record " ++ show (toList m)
 
 
 defVal :: Type -> Value
-defVal IntegerT = IntVal    0
-defVal FloatT   = FloatVal  0.0
-defVal BooleanT = BoolVal   False
-defVal CharT    = CharVal ' '
-defVal StringT  = StringVal ""
-defVal _        = error "Eval.Values.defVal"
+defVal IntegerT    = IntVal    0
+defVal FloatT      = FloatVal  0.0
+defVal BooleanT    = BoolVal   False
+defVal CharT       = CharVal   '\0'
+defVal StringT     = StringVal ""
+defVal (RecordT m) = RecordVal (map defVal m)
+defVal _           = error "Eval.Values.defVal"
 
 
 type UnaryOp  = Value -> Value

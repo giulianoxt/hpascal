@@ -11,15 +11,17 @@ module Parser.HParser where
 import Language.AST
 import Language.Basic
 import TypeSystem.Checker
-import TypeSystem.Types (Type)
+import TypeSystem.Types hiding (fail)
 
 import Parser.State
 import qualified Parser.Tokens as T
 
+import Data.Map (fromList)
 import Data.Char (isLetter)
 import Control.Monad (when, liftM)
 import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Expr
+
 
 
 -- | Funcao para execucao do parser principal do HPascal
@@ -74,10 +76,11 @@ block =
 declarations :: HParser DeclarationPart
 declarations =
   do constL <- optSection constDeclarations
+     typeL  <- optSection typeDeclarations
      varL   <- optSection varDeclarations
      rdecls <- T.semiSep routineDecl
      
-     return (DeclPart constL [] varL rdecls)
+     return (DeclPart constL typeL varL rdecls)
 
  where -- | Recebe um parser para uma declaracao,
        -- e monta um parser para uma secao opcional de declaracoes
@@ -121,8 +124,9 @@ constDeclarations = liftM concat (many1 constDeclaration)
        singleConstDecl =
         do varId  <- T.identifier
           
-           T.symbol ":"
-           typeV  <- option Nothing $ liftM Just parseTypeIdentifier
+           typeV  <- option Nothing $ liftM Just $
+                        do T.symbol ":"
+                           parseIdentifierType
            
            T.symbol "="
            expr   <- expression
@@ -131,6 +135,23 @@ constDeclarations = liftM concat (many1 constDeclaration)
            
            processConstDecl dec
            return dec
+
+
+typeDeclarations :: HParser [TypeDeclaration]
+typeDeclarations = liftM concat (many1 typeDeclaration)
+ where typeDeclaration = 
+        do T.reserved "type"
+           T.semiSep1 singleTypeDecl
+        <?> "type definition"
+       
+       singleTypeDecl =
+        do typeId <- T.identifier
+           T.symbol "="
+           typeV <- parseType            
+           
+           let typeDecl = TypeDec typeId typeV
+           processTypeDecl typeDecl
+           return typeDecl
 
 
 routineDecl :: HParser RoutineDeclaration
@@ -157,7 +178,7 @@ functionDecl =
      ident  <- T.identifier
      params <- T.parens (T.semiSep parameter)
      T.symbol ":"
-     typeId <- parseTypeIdentifier
+     typeId <- parseIdentifierType
      T.symbol ";"
      bl     <- enterFunctionBlock ident typeId params
      
@@ -187,12 +208,30 @@ parameter =
 -- tenha sido definido, retorna um UnknownType e loga o erro
 -- no estado interno do parser.
 parseType :: HParser Type
-parseType = parseTypeIdentifier
-
-parseTypeIdentifier :: HParser Type
-parseTypeIdentifier = 
+parseType =
+     parseRecordType
+ <|> parseIdentifierType
+ <?> "type declaration"  
+ 
+parseIdentifierType :: HParser Type
+parseIdentifierType = 
   do typeId <- T.identifier
      getTypeVal typeId
+
+parseRecordType :: HParser Type
+parseRecordType =
+  do T.reserved "record"
+     fieldL <- liftM concat (T.semiSep field)
+     T.reserved "end"
+     
+     return $ RecordT (fromList fieldL)
+ where
+  field :: HParser [(Identifier, Type)]
+  field = 
+    do idl   <- T.commaSep1 T.identifier
+       T.symbol ":"
+       typeV <- parseType
+       return [(ident, typeV) | ident <- idl]
 
 
 -- | Parser completo de comandos.
@@ -216,9 +255,9 @@ identifierStmt :: HParser Statement
 identifierStmt =
   do varRef <- variableReference
     
-     ( (lookAhead (T.symbol  "(") >> procedureCallStmt varRef) <|>
-       (lookAhead (oneOf ":+-*/") >> assignmentStmt    varRef) <|>
-       (specialProcedureCall varRef []) )
+     ( procedureCallStmt varRef <|>
+       assignmentStmt    varRef <|>
+       specialProcedureCall varRef [] )
 
 
 procedureCallStmt :: VariableReference -> HParser Statement
@@ -228,11 +267,13 @@ procedureCallStmt varRef =
 
 
 specialProcedureCall :: VariableReference -> [Expr] -> HParser Statement
-specialProcedureCall varRef params =
-  do let call = ProcedureCall varRef params undefined
+specialProcedureCall (VarRef varId) params =
+  do 
+     let call = ProcedureCall varId params (-1)
      call' <- processProcCall call
      return call'
-
+specialProcedureCall _ _ = fail $ "procedure call with "
+                               ++ "compound reference"
 
 -- | Atribuicoes. Reconhece atribuicoes simples
 -- e compostas, com expressoes do lado direito e 
@@ -293,24 +334,24 @@ ifStmt =
 forStmt :: HParser Statement
 forStmt =
   do T.reserved "for"
-     varId  <- T.identifier
+     varRef  <- variableReference
      T.symbol ":="
      
      expr1  <- expression
      checkOrdinalExpr expr1
-     checkAssignExpr varId expr1
+     checkAssignExpr varRef expr1
      
      update <-  (T.reserved "to"     >> return To)
             <|> (T.reserved "downto" >> return Downto)   
             
      expr2  <- expression
      checkOrdinalExpr expr2
-     checkAssignExpr varId expr2
+     checkAssignExpr varRef expr2
 
      T.reserved "do"
      stmt   <- statement
      
-     return (For update varId expr1 expr2 stmt)
+     return (For update varRef expr1 expr2 stmt)
 
 
 whileStmt :: HParser Statement
@@ -370,8 +411,16 @@ repeatStmt =
 
 
 -- | Referencia para variavel, por enquanto so um identifier.
-variableReference :: HParser Identifier
-variableReference = T.identifier
+variableReference :: HParser VariableReference
+variableReference =
+  do ident <- T.identifier
+     varReference (VarRef ident)
+ where
+  -- Simula a recursao a esquerda da gramatica
+  varReference :: VariableReference -> HParser VariableReference
+  varReference varRef = option varRef $ do T.symbol "."
+                                           field <- T.identifier
+                                           varReference (FieldRef varRef field)
 
 
 -- | Parser completo de expressoes, construido utilizando o
@@ -445,16 +494,18 @@ constNumber =
 
 identifierExpr :: HParser Expr
 identifierExpr =
-  do ident <- T.identifier
-     option (Var ident) (functionCall ident)
+  do varRef <- variableReference
+     option (Var varRef) (functionCall varRef)
 
 
-functionCall :: Identifier -> HParser Expr
-functionCall funcRef =
+functionCall :: VariableReference -> HParser Expr
+functionCall (VarRef funcId) =
   do params <- T.parens (T.commaSep expression)
-     let call = FunctionCall funcRef params undefined
+     let call = FunctionCall funcId params (-1)
      call'  <- processFuncCall call
      return call'
+functionCall _ = fail $ "function call with "
+                     ++ "compound var reference"
 
 
 enterBlock :: Identifier -> HParser Block
