@@ -12,7 +12,7 @@
 
 module Language.AST where
 
-impor Language.Basic
+import Language.Basic
 import Language.Scope (Scope)
 
 import Eval.Values (Value)
@@ -192,23 +192,6 @@ data Constant =
  deriving (Show, Eq)
 
 
--- * Fatores simples
-
--- | Numero (inteiro ou de ponto flutuante).
-data Number =  
-   IntNum   Int
- | FloatNum Float
- deriving (Show, Eq)
-
--- | Operador de atribuicao.
--- Pode ser: "+=", "-=", ":=", "/=", "*="
-type AssignOp = String
-
--- | Referencia para uma variavel, que
--- consiste no identificador da variavel.
-type VariableReference = Identifier
-
-
 -- * Tabelas
 
 -- | Tabela interna de tipos. Mapeia identificadores para
@@ -246,14 +229,14 @@ data VariableDescriptor = VarDescriptor {
  , isReference :: Maybe Reference
 } deriving (Show)
 
---| Referencia concreta a uma variavel.
+-- | Referencia concreta a uma variavel.
 -- Guarda seu escopo e seu identificador.
 data Reference = StackReference {
    refScope :: Scope
  , refVar   :: Identifier
 } deriving (Show)
 
---| Dados estaticos: um conjunto de tabelas que
+-- | Dados estaticos: um conjunto de tabelas que
 -- permite lidar com o ambiente de referenciamento de
 -- um determinado bloco de codigo.
 data StaticData = StaticData {
@@ -264,7 +247,7 @@ data StaticData = StaticData {
   , scope   :: Scope
  } deriving (Show)
 
---| Definicao de um procedimento.
+-- | Definicao de um procedimento.
 data Procedure =
    Procedure   {
      poverloads :: [ProcedureInstance]
@@ -274,14 +257,14 @@ data Procedure =
    , pfun       :: (MonadIO m) => [Value] -> m ()
    } 
 
---| Instancia de um procedimento.
+-- | Instancia de um procedimento.
 -- Guarda a assinatura da rotina e o bloco associado.
 data ProcedureInstance = ProcInstance {
    psignature :: RoutineSignature
  , pcode      :: Block
 } deriving (Show)
 
---| Definicao de uma funcao.
+-- | Definicao de uma funcao.
 data Function =
    Function {
      foverloads :: [FunctionInstance]
@@ -292,7 +275,7 @@ data Function =
     , ffun       :: (MonadIO m) => [Value] -> m Value
    }
 
---| Instancia de uma funcao.
+-- | Instancia de uma funcao.
 -- Guarda a assinatura da rotina, o bloco associado
 -- e o tipo de retorno.
 data FunctionInstance = FuncInstance {
@@ -321,7 +304,7 @@ instance (Eq ProcedureInstance) where
 instance (Eq FunctionInstance) where
   FuncInstance sig1 _ _ == FuncInstance sig2 _ _ = (sig1 == sig2)
 
---| Checagem de compatibilidade entre a chamada de um
+-- | Checagem de compatibilidade entre a chamada de um
 -- procedimento e sua assinatura.
 matchProcCall :: [Type]
               -> [RoutineSignature]

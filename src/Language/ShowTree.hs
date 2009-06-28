@@ -1,4 +1,4 @@
---| Modulo que visa a exibir, em modo amigavel,
+-- | Modulo que visa a exibir, em modo amigavel,
 -- a arvore sintatica correpondente ao programa analisado.
 module Language.ShowTree where
 

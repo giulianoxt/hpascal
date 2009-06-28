@@ -181,8 +181,7 @@ evalConstant c =
     ConstNum (FloatNum f) -> return (FloatVal f)
     ConstBool b           -> return (BoolVal b)
     ConstChar x           -> return (CharVal x)
-    ConstStr  s           -> return (StringVal s)
-    _                     -> error $ "Monad.evalConstant" ++ show c
+    ConstStr s            -> return (StringVal s)
 
 
 evalPascalFunc :: Identifier -> FunctionInstance -> [Expr] -> HEval Value

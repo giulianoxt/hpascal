@@ -1,12 +1,17 @@
-
+-- | Modulo importante para permitir o tratamento
+-- correto dos escopos criados de acordo com o codigo.
+-- O HPascal trabalha apenas com escopo estatico.
 module Language.Scope where
 
 import Language.Basic
 
-
+-- | Escopo. Eh representado como a lista dos
+-- identificadores acessiveis dentro dele.
 type Scope = [Identifier]
 
-
+-- | Definicao que abstrai a relacao entre dois escopos,
+-- util, por exemplo, a determinacao das permissoes de
+-- acesso a variaveis.
 data ScopeRelation =
    Different
  | Equal
@@ -15,11 +20,14 @@ data ScopeRelation =
  | Ancestor Scope
  deriving (Show)
 
-
+-- | Funcao que adiciona um identificador a um determinado
+-- escopo, devolvendo o escopo resultante.
 enterScope :: Identifier -> Scope -> Scope
 enterScope = (flip (++)) . (: [])
 
-
+-- | Funcao de comparacao entre escopos. Recebe duas
+-- entidades representativas de escopos e devolve a
+-- relacao existente entre elas.
 cmpScopes :: Scope -> Scope -> ScopeRelation
 cmpScopes s1 s2
   | s1 == s2          = Equal
