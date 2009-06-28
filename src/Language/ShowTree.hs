@@ -1,9 +1,12 @@
-
+--| Modulo que visa a exibir, em modo amigavel,
+-- a arvore sintatica correpondente ao programa analisado.
 module Language.ShowTree where
 
 import Language.AST
+import Language.Basic
 
-
+-- | Funcao que retorna uma String representativa da arvore
+-- sintatica utilizada para modelar um dado programa.
 showParseTree :: Program -> String
 showParseTree = showProgram
  where showProgram (Program name uses block) =

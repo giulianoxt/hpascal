@@ -1,6 +1,6 @@
 {-# LANGUAGE RankNTypes #-}
 
--- |Modulo contendo a definicao da arvore abstrata
+-- | Modulo contendo a definicao da arvore abstrata
 -- de sintaxe do HPascal. Pedacos da arvore sao definidos
 -- separadamente, usando construtores /data/. 
 --
@@ -12,7 +12,7 @@
 
 module Language.AST where
 
-import Language.Basic
+impor Language.Basic
 import Language.Scope (Scope)
 
 import Eval.Values (Value)
