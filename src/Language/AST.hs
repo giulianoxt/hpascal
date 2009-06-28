@@ -8,7 +8,7 @@
 -- /na mao/, e sim pelo parser em "Parsing".
 --
 -- Note que as definicoes contidas aqui sao semelhantes a
--- gramatica presente na documentacao final do /HPascal/.
+-- gramatica EBNF presente na documentacao final do /HPascal/.
 
 module Language.AST where
 
@@ -28,15 +28,21 @@ import Control.Monad.Trans (MonadIO)
 data Program = Program Identifier UsesClause Block
  deriving (Show)
 
--- | Importam nomes de funcoes e variaveis
--- globais externas para o escopo atual.
+-- | Clausulas de uso. Importam nomes de funcoes e
+-- variaveis globais externas para o escopo atual.
 data UsesClause = UsesClause [Identifier]
  deriving (Show)
 
--- | Bloco de codigo. Esta presente no escopo principal de um programa
--- assim como em definicoes de /subrotinas/.
+-- | Bloco de codigo. Esta presente no escopo principal de
+-- um programa assim como em definicoes de /subrotinas/.
 --
--- Contem uma secao de declaracoes e um 'CompoundStatement'.
+-- Contem uma secao de declaracoes e uma sequencia de comandos
+-- (um Statement pode ser um encadeamento de comandos, atraves
+-- do seu construtor Compound).
+--
+-- Tambem sao guardados conjuntos de tabelas, do tipo 'StaticData',
+-- que sao uteis as associacoes de identificadores a entidades,
+-- a serem realizadas no ambiente de referenciamento do bloco.
 data Block = Block DeclarationPart Statement [StaticData]
 
 instance (Show Block) where
@@ -59,7 +65,7 @@ data ConstantDeclaration = ConstDec Identifier (Maybe Type) Expr
 
 -- | Declaracao de tipos.
 data TypeDeclaration = TypeDec Identifier Type
- deriving(Show)
+ deriving (Show)
 
 -- | Declaracao de variaveis de um mesmo tipo.
 data VariableDeclaration = VarDec [Identifier] Type (Maybe Expr)
@@ -71,61 +77,70 @@ data RoutineDeclaration =
  | FunctionDec  Identifier RoutineSignature Type Block -- (inclui tipo de retorno)
  deriving (Show)
 
+-- | Assinatura de rotinas (lista dos seus parametros).
 type RoutineSignature = [Parameter]
 
--- | Declaracao dos parametros para as rotinas.
+-- | Declaracao generica dos parametros para as rotinas.
 data Parameter = Parameter PassingMode [Identifier] Type (Maybe Expr)
  deriving (Show, Eq)
- 
+
+-- | Modo de passagem dos parametros.
 data PassingMode = Value | Const | Reference
  deriving (Show, Eq)
 
--- | Declaracao de arrays.
+-- | Declaracao de arrays (contendo sua lista de faixas de indices).
 data ArrayDeclaration = ArrayDec [(Number, Number)]
  deriving (Show)
+
 
 -- * Comandos
 
 -- | Representacao interna dos comandos aceitos pela linguagem. Um
--- 'Statement' representa um bloco minimo de execucao de codigo.
+-- 'Statement' eh definido aqui como um ou mais comandos encadeados.
 data Statement =
-   -- simple statements
-   Nop
- | Assignment VariableReference Expr
+   -- Comandos simples
+   Nop                                 -- Nenhuma operacao
+ | Assignment VariableReference Expr   -- Atribuição
+ | FunctionReturn Identifier Expr      -- Chamada de funcao
+ | ProcedureCall Identifier [Expr] Int -- Chamada de procedimento
  
- | FunctionReturn Identifier Expr
- 
- | ProcedureCall Identifier [Expr] Int
- 
- -- control flow statements
+ -- Comandos de controle de fluxo
  | Break | Continue | Raise (Maybe Expr)
  
- -- structured statements
- | Compound [Statement]
- | If Expr Statement Statement                  -- if (e) then stmt1 else stmt2
- | For ForUpdate Identifier Expr Expr Statement -- for i = a (to | downto) b do stmt
- | Repeat Statement Expr                        -- statement eh sempre um compound
- | While Expr Statement                         -- while (e) stmt
- | With [VariableReference] Statement           -- with v1,v2,v3 do stmt
- | Try Statement [ExceptionHandler] Statement
- | Case Expr [CasePart] 
+ -- Comandos estruturados
+ | Compound [Statement]                             -- Sequencia de comandos
+ | If Expr Statement Statement                      -- if (e) then stmt1 else stmt2
+ | For ForUpdate Identifier Expr Expr Statement     -- for i = a (to | downto) b do stmt
+ | Repeat Statement Expr                            -- repeat (stmts) until (expr)
+ | While Expr Statement                             -- while (e) stmt
+ | With [VariableReference] Statement               -- with v1,v2,v3 do stmt
+ | Try Statement (Maybe ExceptionHandler) Statement -- Comando /try except/
+ | Case Expr [CasePart]                             -- Comando /case of/
  deriving (Show)
 
+-- | Tipos de iteracao do laco 'for'.
 data ForUpdate = To | Downto
  deriving (Show)
 
-data ExceptionHandler = Handler Expr Statement
+-- | Tratamento de excecoes.
+data ExceptionHandler = Handler Expr Statement -- on (expr) do (stmt)
  deriving (Show)
  
+-- | Definicao auxiliar para o comando 'case'.
+-- Um 'CasePart' eh composto pela 'clausula do case'
+-- (parte dos casamentos) e pela 'clausula do else'
+-- (parte executada quando nao ha casamento).
 data CasePart =
    CaseClause [CaseMatch] Statement
  | ElseClause Statement
  deriving (Show)
 
+-- | Outra definicao auxiliar para o comando 'case'.
 data CaseMatch =
    SingleCase Constant
  | RangeCase Constant Constant
  deriving (Show)
+
 
 -- * Expressoes
 
@@ -134,7 +149,7 @@ data CaseMatch =
 -- a legibilidade dos casamentos de padrao.
 --
 -- Os operadores (construtores binarios) sao apresentados aqui
--- na ordem de precedencia da linguagem (menor a maior)
+-- em ordem crescente de precedencia na linguagem
 data Expr = 
    Expr :<: Expr         -- ^ Menor que
  | Expr :>: Expr         -- ^ Maior que
@@ -165,10 +180,10 @@ data Expr =
  | ConstExpr Constant    -- ^ Constante
  | Var VariableReference -- ^ Referencia a variavel
  
- | FunctionCall Identifier [Expr] Int
+ | FunctionCall Identifier [Expr] Int -- Chamada de funcao
  deriving (Show, Eq)
   
--- | Por enquanto so como um desses tres tipos.
+-- | Constante. Representa um desses quatro tipos.
 data Constant =
    ConstNum Number
  | ConstStr String
@@ -176,20 +191,21 @@ data Constant =
  | ConstChar Char
  deriving (Show, Eq)
 
+
 -- * Fatores simples
 
+-- | Numero (inteiro ou de ponto flutuante).
 data Number =  
    IntNum   Int
  | FloatNum Float
  deriving (Show, Eq)
 
-
--- | Operador de atribuicao ('Assignment').
+-- | Operador de atribuicao.
 -- Pode ser: "+=", "-=", ":=", "/=", "*="
 type AssignOp = String
 
--- | Referencia para variavel.
--- Por enquanto so como um 'Identifier' normal.
+-- | Referencia para uma variavel, que
+-- consiste no identificador da variavel.
 type VariableReference = Identifier
 
 
@@ -201,38 +217,45 @@ type VariableReference = Identifier
 -- Note que nem todos os tipos utilizados em um programa
 -- estarao presentes nessa tabela, pois o HPascal permite
 -- declaracao de variaveis com tipos anonimos (sem identificadores).
--- Ex: var x : array (3..5) of string;  
-type TypeTable   = Map Identifier Type
-
+-- Exemplo: var x : array (3..5) of string;
+type TypeTable = Map Identifier Type
 
 -- | Tabela geral de simbolos (variaveis, subrotinas, etc.). Mapeia
 -- identificadores para os tipos concretos dos simbolos.
 --
 -- Devido a declaracao com tipos anonimos, nem todos os tipos presentes
 -- aqui estarao na tabela 'TypeTable'.
---
--- Nao guardamos o valor atual da variavel, por exemplo, pois as tabelas
--- deste modulo so serao utilizadas durante o parsing.
 type SymbolTable = Map Identifier VariableDescriptor
 
-
+-- | Tabela que mapeia um identificador ao
+-- procedimento associado a ele.
 type ProcedureTable = Map String Procedure
 
-
+-- | Tabela que mapeia um identificador a
+-- funcao associada a ele.
 type FunctionTable  = Map String Function
 
-
+-- | Descritor de uma variavel. Guarda seu
+-- tipo e outras informacoes relevantes.
+--
+-- Nao guardamos o valor atual da variavel, por exemplo, pois
+-- as tabelas deste modulo so serao utilizadas durante o parsing.
 data VariableDescriptor = VarDescriptor {
    varType     :: Type
  , isConst     :: Bool
  , isReference :: Maybe Reference
 } deriving (Show)
 
+--| Referencia concreta a uma variavel.
+-- Guarda seu escopo e seu identificador.
 data Reference = StackReference {
    refScope :: Scope
  , refVar   :: Identifier
 } deriving (Show)
 
+--| Dados estaticos: um conjunto de tabelas que
+-- permite lidar com o ambiente de referenciamento de
+-- um determinado bloco de codigo.
 data StaticData = StaticData {
     stSymT  :: SymbolTable
   , stTypeT :: TypeTable
@@ -241,55 +264,65 @@ data StaticData = StaticData {
   , scope   :: Scope
  } deriving (Show)
 
-
+--| Definicao de um procedimento.
 data Procedure =
    Procedure   {
      poverloads :: [ProcedureInstance]
    } 
  | HaskellProc {
-     pcheck     :: [Type]  -> Bool
+     pcheck     :: [Type]  -> Bool -- checagem de compatibilidade
    , pfun       :: (MonadIO m) => [Value] -> m ()
    } 
 
-
+--| Instancia de um procedimento.
+-- Guarda a assinatura da rotina e o bloco associado.
 data ProcedureInstance = ProcInstance {
    psignature :: RoutineSignature
  , pcode      :: Block
 } deriving (Show)
 
-
+--| Definicao de uma funcao.
 data Function =
    Function {
      foverloads :: [FunctionInstance]
    }
  | HaskellFunc {
-      fcheck     :: [Type] -> Bool
-    , ftype      :: Type
+      fcheck     :: [Type] -> Bool -- checagem de compatibilidade
+    , ftype      :: Type -- tipo de retorno
     , ffun       :: (MonadIO m) => [Value] -> m Value
    }
 
+--| Instancia de uma funcao.
+-- Guarda a assinatura da rotina, o bloco associado
+-- e o tipo de retorno.
 data FunctionInstance = FuncInstance {
    fsignature    :: RoutineSignature
  , fcode         :: Block
  , fInstanceType :: Type
 } deriving (Show)
 
-
+-- | Instancia derivada util para exibicao de um procedimento.
 instance (Show Procedure) where
   show (Procedure ps) = "Procedure " ++ show ps
   show (HaskellProc _ _) = "HaskellProcedure"
 
+-- | Instancia derivada util para exibicao de uma funcao.
 instance (Show Function) where
   show (Function ps)       = "Function " ++ show ps
   show (HaskellFunc _ _ _) = "HaskellFunction"
 
+-- | Instancia derivada util para comparacao
+-- de instancias de procedimento.
 instance (Eq ProcedureInstance) where
   ProcInstance sig1 _ == ProcInstance sig2 _ = (sig1 == sig2)
 
+-- | Instancia derivada util para comparacao
+-- de instancias de funcao.
 instance (Eq FunctionInstance) where
   FuncInstance sig1 _ _ == FuncInstance sig2 _ _ = (sig1 == sig2)
 
-
+--| Checagem de compatibilidade entre a chamada de um
+-- procedimento e sua assinatura.
 matchProcCall :: [Type]
               -> [RoutineSignature]
               -> [(RoutineSignature, Int)]
@@ -302,11 +335,11 @@ matchProcCall types sigs = match (zip sigs [0..])
         match' [] []                                    =
           True              -- chamadas vazias
         match' []     ((Parameter _ [] _ _):ps)         =
-          match' [] ps      -- n devia vir aqui eu acho
+          match' [] ps      -- nao deve vir aqui
         match' []     ((Parameter _ [_] _ (Just _)):ps) =
           match' [] ps      -- usando parametro default
         match' (t:ts) ((Parameter _ [] _ _):ps)         =
-          match' (t:ts) ps  -- passando pra outra secao
+          match' (t:ts) ps  -- passando para outra secao
         match' (t:ts) ((Parameter m (_:idl) t' ex):ps)
           | t == t'   =     -- usando argumento
              match' ts ((Parameter m idl t' ex):ps)
