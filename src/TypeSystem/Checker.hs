@@ -370,7 +370,7 @@ infer e =
   FunctionCall fId _ sigP ->
     do look <- getFuncVal fId
        case look of
-        Nothing                  -> error "TypeChecker.infer.FunctionCall"
+        Nothing                  -> return UnknownType
         Just (Function sigs)     -> return $ fInstanceType (sigs !! sigP)
         Just (HaskellFunc _ t _) -> return t
 
