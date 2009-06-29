@@ -209,7 +209,8 @@ parameter =
 -- no estado interno do parser.
 parseType :: HParser Type
 parseType =
-     parseRecordType
+     parseArrayType
+ <|> parseRecordType
  <|> parseIdentifierType
  <?> "type declaration"  
  
@@ -217,6 +218,37 @@ parseIdentifierType :: HParser Type
 parseIdentifierType = 
   do typeId <- T.identifier
      getTypeVal typeId
+
+parseArrayType :: HParser Type
+parseArrayType =
+  do T.reserved "array"
+     dimensions <- T.brackets $ T.commaSep1 $ arrayRange
+     T.reserved "of"
+     typeV      <- parseIdentifierType
+     
+     numDimensions <- mapM evalDimension dimensions
+     
+     return $ makeArrayV numDimensions typeV 
+ where
+  arrayRange :: HParser (Expr, Expr)
+  arrayRange =
+    do c <- expression
+       option (zero, c) $ do T.symbol ".."
+                             c' <- expression
+                             return (c, c')
+  
+  makeArrayV :: [(Int, Int)] -> Type -> Type
+  makeArrayV [] t     = t
+  makeArrayV (d:ds) t = ArrayT d (makeArrayV ds t)
+  
+  evalDimension :: (Expr, Expr) -> HParser (Int, Int)
+  evalDimension (a,b) =
+    do a' <- evalConstant a
+       b' <- evalConstant b
+       return (a', b')
+  
+  zero :: Expr
+  zero = ConstExpr $ ConstNum $ IntNum $ 0
 
 parseRecordType :: HParser Type
 parseRecordType =
@@ -295,6 +327,7 @@ assignmentStmt varRef =
      
      -- Pode mudar para um functionReturn
      stmt <- processAssignment assign
+     
      return stmt
      
  where assignOp :: HParser String
@@ -417,10 +450,23 @@ variableReference =
      varReference (VarRef ident)
  where
   -- Simula a recursao a esquerda da gramatica
-  varReference :: VariableReference -> HParser VariableReference
-  varReference varRef = option varRef $ do T.symbol "."
-                                           field <- T.identifier
-                                           varReference (FieldRef varRef field)
+  varReference varRef =
+       fieldReference varRef
+   <|> indexReference varRef
+   <|> return varRef
+  
+  fieldReference varRef =
+    do T.symbol "."
+       field <- T.identifier
+       varReference (FieldRef varRef field)
+  
+  indexReference varRef =
+    do exprL <- T.brackets $ T.commaSep1 $ expression
+       return $ buildIndexRef varRef (reverse exprL)
+  
+  buildIndexRef varRef []     = varRef
+  buildIndexRef varRef (e:es) = IndexRef (buildIndexRef varRef es) e
+      
 
 
 -- | Parser completo de expressoes, construido utilizando o
@@ -490,6 +536,11 @@ constNumber =
       return $ case num of
                  Left  n -> IntNum (fromIntegral n)
                  Right n -> FloatNum (realToFrac n)
+
+intNumber :: HParser Int
+intNumber = 
+  do Left n <- T.number
+     return $ fromIntegral n
 
 
 identifierExpr :: HParser Expr

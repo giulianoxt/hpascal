@@ -5,6 +5,7 @@ import Language.Basic
 import TypeSystem.Types
 
 import Data.Map
+import Data.Array
 import Prelude hiding (map)
 
 
@@ -15,6 +16,7 @@ data Value =
  | FloatVal Float
  | StringVal String
  | RecordVal (Map Identifier Value)
+ | ArrayVal (Array Int Value)
  
 type ValueTable = Map Identifier Value
 
@@ -27,16 +29,19 @@ instance Show Value where
   show (FloatVal f)  = show f
   show (StringVal s) = s
   show (RecordVal m) = "record " ++ show (toList m)
+  show (ArrayVal a)  = show (Data.Array.elems a)
 
 
 defVal :: Type -> Value
-defVal IntegerT    = IntVal    0
-defVal FloatT      = FloatVal  0.0
-defVal BooleanT    = BoolVal   False
-defVal CharT       = CharVal   '\0'
-defVal StringT     = StringVal ""
-defVal (RecordT m) = RecordVal (map defVal m)
-defVal _           = error "Eval.Values.defVal"
+defVal IntegerT         = IntVal    0
+defVal FloatT           = FloatVal  0.0
+defVal BooleanT         = BoolVal   False
+defVal CharT            = CharVal   '\0'
+defVal StringT          = StringVal ""
+defVal (RecordT m)      = RecordVal (map defVal m)
+defVal (ArrayT (a,b) t) = ArrayVal $ 
+                           array (a,b) [(i, defVal t) | i <- [a..b]]
+defVal _                = error "Eval.Values.defVal"
 
 
 type UnaryOp  = Value -> Value
@@ -85,10 +90,18 @@ divOp2 (IntVal a) (IntVal b)     = FloatVal (fromIntegral a /
 divOp2 _ _ = error "Eval.Values.divOp2"
 
 
+expOp2 :: BinaryOp
+expOp2 (FloatVal a) (FloatVal b) = FloatVal (a ** b)
+expOp2 (IntVal a) (FloatVal b)   = FloatVal (fromIntegral a ** b)
+expOp2 (FloatVal a) (IntVal b)   = FloatVal (a ** fromIntegral b)
+expOp2 (IntVal a) (IntVal b)     = FloatVal (fromIntegral a **
+                                             fromIntegral b)
+expOp2 _ _ = error "Eval.Values.divOp2"
+
+
 boolOp2 :: (Bool -> Bool -> Bool) -> BinaryOp
 boolOp2 f (BoolVal a) (BoolVal b) = BoolVal (f a b)
 boolOp2 _ _ _                     = error "Eval.Values.boolOp2"
-
 
 relOp2 :: (Int -> Int -> Bool)
        -> (Float -> Float -> Bool)

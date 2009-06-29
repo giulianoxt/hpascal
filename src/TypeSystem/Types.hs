@@ -33,6 +33,7 @@ data Type =
  | CharT
  | StringT
  | RecordT (Map Identifier Type)
+ | ArrayT (Int, Int) Type
  | UnknownType  -- ^ Tipo indefinido
  deriving (Eq) 
  
@@ -45,6 +46,8 @@ instance (Show Type) where
   show CharT       = "char"
   show UnknownType = "UnknownType"
   show (RecordT m) = "record of " ++ show (toList m)
+  show (ArrayT (a,b) t) = "array " ++ show a ++ " to " ++ show b
+                                   ++ " of " ++ show t
 
 
 -- * Coercoes
@@ -116,6 +119,10 @@ cDivOp2 t1 t2
   | all isNumeric [t1,t2] = suceed FloatT
   | otherwise             =
     fail "two numeric types on numeric operation" (t1, t2)
+
+
+cExpOp2 :: BinaryCoercion
+cExpOp2 = cDivOp2
 
 
 -- | Operador booleano binario normal (ex: and, or)

@@ -88,10 +88,6 @@ data Parameter = Parameter PassingMode [Identifier] Type (Maybe Expr)
 data PassingMode = Value | Const | Reference
  deriving (Show, Eq)
 
--- | Declaracao de arrays (contendo sua lista de faixas de indices).
-data ArrayDeclaration = ArrayDec [(Number, Number)]
- deriving (Show)
-
 
 -- * Comandos
 
@@ -250,16 +246,19 @@ data StaticData = StaticData {
 data VariableReference =
    VarRef Identifier
  | FieldRef VariableReference Identifier
+ | IndexRef VariableReference Expr
  deriving (Eq)
 
 baseVarReference :: VariableReference -> Identifier
 baseVarReference (VarRef i) = i
 baseVarReference (FieldRef r _) = baseVarReference r
+baseVarReference (IndexRef r _) = baseVarReference r
 
 
 instance (Show VariableReference) where
   show (VarRef i)          = i
   show (FieldRef varRef i) = show varRef ++ "." ++ i
+  show (IndexRef varRef e) = show varRef ++ "[" ++ show e ++ "]"
 
 -- | Definicao de um procedimento.
 data Procedure =

@@ -31,8 +31,14 @@ evalBlock _ = error "Eval.Monad.evalBlock"
 
 
 evalDeclarations :: DeclarationPart -> HEval ()
-evalDeclarations (DeclPart _ _ varL _) =
-  mapM_ evalVarDeclaration varL
+evalDeclarations (DeclPart constL _ varL _) =
+  do mapM_ evalConstDeclaration constL
+     mapM_ evalVarDeclaration varL
+
+
+evalConstDeclaration :: ConstantDeclaration -> HEval()
+evalConstDeclaration (ConstDec varId _ expr) =
+  evalStatement (Assignment (VarRef varId) expr)
 
 
 evalVarDeclaration :: VariableDeclaration -> HEval ()
@@ -58,11 +64,13 @@ evalStatement (Compound stmtl) =
 evalStatement (Assignment varRef expr) =
   do value <- evalExpr expr
     
-     varD  <- getVarDescriptor varRef
+     nVarRef <- normalizeVarRef varRef
+     
+     varD  <- getVarDescriptor nVarRef
      
      case isReference varD of
-      Nothing -> insertVal varRef value
-      Just r  -> insertRefVal r varRef value
+      Nothing -> insertVal nVarRef value
+      Just r  -> insertRefVal r nVarRef value
 
 evalStatement (FunctionReturn fId expr) =
   evalStatement (Assignment (VarRef fId) expr)
@@ -144,10 +152,11 @@ evalExpr expr =
     e1 :>=: e2 -> bin e1 e2 $ relOp2 (>=) (>=)
     e1 :<>: e2 -> bin e1 e2 $ relOp2 (/=) (/=)
     
-    e1 :+: e2 -> bin e1 e2 $ numOp2 (+) (+)
-    e1 :-: e2 -> bin e1 e2 $ numOp2 (-) (-)
-    e1 :*: e2 -> bin e1 e2 $ numOp2 (*) (*)
-    e1 :/: e2 -> bin e1 e2 $ divOp2
+    e1 :+: e2  -> bin e1 e2 $ numOp2 (+) (+)
+    e1 :-: e2  -> bin e1 e2 $ numOp2 (-) (-)
+    e1 :*: e2  -> bin e1 e2 $ numOp2 (*) (*)
+    e1 :**: e2 -> bin e1 e2 $ expOp2
+    e1 :/: e2  -> bin e1 e2 $ divOp2
     
     Not e     -> unary e   $ boolOp1 not
     Var varR  -> evalVarReference varR
@@ -172,11 +181,12 @@ evalExpr expr =
 
 evalVarReference :: VariableReference -> HEval Value
 evalVarReference varRef =
-  do varD <- getVarDescriptor varRef
+  do nVarRef <- normalizeVarRef varRef
+     varD <- getVarDescriptor nVarRef
      
      case isReference varD of
-      Nothing -> getVarValue varRef
-      Just r  -> getRefVarValue r varRef
+      Nothing -> getVarValue nVarRef
+      Just r  -> getRefVarValue r nVarRef
 
 
 evalConstant :: Constant -> HEval Value
@@ -212,7 +222,7 @@ evalPascalFunc fId funcSig params =
                           
                           evalDeclarations decls
                           evalStatement stmt
-                          getVarValue (VarRef fId)
+                          getVarValue (NVarRef fId)
 
 
 evalHaskellFunc :: Function -> [Expr] -> HEval Value
@@ -271,8 +281,9 @@ runtimeParameters :: [Expr] -> HEval [RuntimeParameter]
 runtimeParameters = mapM singleParam
  where
   singleParam expr@(Var varRef) =
-    do varD     <- getVarDescriptor varRef
-       varScope <- getVarScope varRef
+    do nVarRef  <- normalizeVarRef varRef
+       varD     <- getVarDescriptor nVarRef
+       varScope <- getVarScope nVarRef
        
        let mref = isReference varD
       
@@ -287,6 +298,18 @@ runtimeParameters = mapM singleParam
   singleParam expr =
     do val <- evalExpr expr
        return (ExprParameter val)
+
+
+normalizeVarRef :: VariableReference -> HEval NVariableReference
+normalizeVarRef varRef = case varRef of
+  VarRef i     -> return (NVarRef i)
+  
+  FieldRef r f -> do nv <- normalizeVarRef r
+                     return (NFieldRef nv f)
+                     
+  IndexRef r e -> do i  <- evalExpr e
+                     nv <- normalizeVarRef r
+                     return (NIndexRef nv i)
 
 
 debug :: String -> HEval ()

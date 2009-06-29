@@ -48,6 +48,7 @@ processConstDecl (ConstDec varId mtype expr) =
                 Just t  -> return t
      
      insertVar varId typeV True Nothing
+     updateConstT varId expr
      checkCompatibleExprs (Var (VarRef varId)) expr
 
 
@@ -264,6 +265,7 @@ checkExprType typeV expr =
        
        
 getVarType :: VariableReference -> HParser Type
+
 getVarType (VarRef varId) = 
   do look <- lookupVarIdent varId
      case look of
@@ -271,6 +273,7 @@ getVarType (VarRef varId) =
       Nothing -> do logError $ UnknownIdentifier $
                       "var identifier " ++ show varId
                     return UnknownType
+                    
 getVarType (FieldRef varRef field) =
   do refT <- getVarType varRef
      case refT of
@@ -284,6 +287,16 @@ getVarType (FieldRef varRef field) =
       _           -> do logError $ InvalidFieldAccess $
                                  "variable " ++ show varRef ++
                                  " is not a record"
+                        return UnknownType
+
+getVarType (IndexRef varRef idx) =
+  do refT <- getVarType varRef
+     case refT of
+      UnknownType -> return refT
+      ArrayT _ t  -> checkOrdinalExpr idx >> return t
+      _           -> do logError $ InvalidFieldAccess $
+                                 "variable " ++ show varRef ++
+                                 " is not an array"
                         return UnknownType
 
 
@@ -345,7 +358,7 @@ infer e =
   e1 :<: e2   -> binaryInf cRelOp2 e1 e2
   _ `In` _    -> error "TypeChecker.infer"
   
-  e1 :**: e2  -> binaryInf cNumOp2 e1 e2
+  e1 :**: e2  -> binaryInf cExpOp2 e1 e2
   e1 `Shr` e2 -> binaryInf cNumOp2 e1 e2
   e1 `Shl` e2 -> binaryInf cNumOp2 e1 e2
   e1 `And` e2 -> binaryInf cBoolOp2 e1 e2
@@ -401,3 +414,46 @@ returnCoerce cr = case cr of
   Right t  -> return t
   Left msg -> do logError $ TypeError msg
                  return UnknownType
+
+
+evalConstant :: Expr -> HParser Int
+evalConstant expr =
+  do c <- evalc expr
+     case c of
+      Nothing -> return (-1)
+      Just i  -> return i
+ where
+  evalc e = case e of
+    e1 :+: e2  -> bin (+) e1 e2
+    e1 :-: e2  -> bin (-) e1 e2
+    e1 :*: e2  -> bin (*) e1 e2
+    e1 :/: e2  -> bin div e1 e2
+    e1 :**: e2 -> bin (^) e1 e2
+    Minus e'   -> unary negate e'
+    
+    ConstExpr (ConstNum (IntNum i)) -> return (Just i)
+    
+    Var (VarRef c) ->
+      do mexpr <- lookupConstIdent c
+         case mexpr of
+          Nothing -> do logError $ UnknownIdentifier c
+                        return Nothing
+          Just e'  -> evalc e'
+    
+    _ -> do logError ExpectingConstant
+            return Nothing
+ 
+  bin f e1 e2 =
+    do c1 <- evalc e1
+       c2 <- evalc e2
+       
+       case (c1,c2) of
+        (Just a, Just b) -> return $ Just (f a b)
+        _                -> return Nothing
+
+  unary f e =
+    do c <- evalc e
+       case c of
+        Just i -> return $ Just (f i)
+        _      -> return Nothing
+  

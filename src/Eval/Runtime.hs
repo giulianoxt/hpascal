@@ -8,7 +8,8 @@ import Language.Scope
 import Language.Basic
 import Parser.State (initialState, staticT)
 
-import Data.Map
+import Data.Array
+import Data.Map hiding ((!))
 import Data.Maybe (fromJust)
 import Prelude hiding (lookup)
 
@@ -186,79 +187,99 @@ searchScopes p f (s:ss)
                  (x     , s:ss')
 
 
-setValue :: VariableReference
+setValue :: Identifier
+         -> NVariableReference
          -> Value
          -> ActiveScope
          -> ActiveScope
-setValue varRef val as = as { valT = newValT }
+setValue baseVar varRef val as = as { valT = newValT }
  where
-  baseVar = baseVarReference varRef
   oldValT = valT as
   newValT = insert baseVar newVal oldValT
+
+  oldVal  = fromJust (lookup baseVar oldValT)
+
+  newVal = case varRef of
+             (NVarRef _) -> val
+             _           -> setRec (accessL varRef) oldVal
   
-  RecordVal oldM  = fromJust (lookup baseVar oldValT)
-  newVal          = case varRef of
-                      (VarRef _) -> val
-                      _          -> setRec (fieldL varRef) oldM
+  setRec [] _ = val
   
-  setRec [f]    m = RecordVal (insert f val m)
-  setRec (f:fs) m = RecordVal (insert f (setRec fs fT) m)
-    where RecordVal fT = fromJust (lookup f m)
-  setRec _      _ = error "Eval.Runtime.setValue"
+  setRec ((Left  f):fs) (RecordVal m) =
+    RecordVal $ insert f (setRec fs (fromJust $ lookup f m)) m
+
+  setRec ((Right i):is) (ArrayVal a)  =
+    ArrayVal $ a // [(i, setRec is (a ! i))]
     
-  fieldL (VarRef _)     = []
-  fieldL (FieldRef v i) = fieldL v ++ [i]
+  setRec _ _ = error "Eval.Runtime.setValue.setRec"
   
+  accessL :: NVariableReference -> [Either Identifier Int]
+  accessL (NVarRef _)              = []
+  accessL (NFieldRef r f)          = accessL r ++ [Left  f]
+  accessL (NIndexRef r (IntVal i)) = accessL r ++ [Right i]
+  accessL _ = error "Eval.Runtime.setValue.accessL"
+ 
    
-getValue :: VariableReference
+getValue :: Identifier 
+         -> NVariableReference
          -> ActiveScope
          -> Value
-getValue (VarRef v)        as = fromJust (lookup v (valT as))
-getValue (FieldRef vref f) as = fromJust (lookup f m)
-  where RecordVal m = getValue vref as
+getValue v (NVarRef _)        as = fromJust (lookup v (valT as))
+getValue v (NFieldRef vref f) as = fromJust (lookup f m)
+  where RecordVal m = getValue v vref as
+getValue v (NIndexRef vref (IntVal i)) as = (a ! i)
+  where ArrayVal a  = getValue v vref as
+getValue _ nVarRef _ = error $ "Eval.Runtime.getValue: " ++ show nVarRef
 
 
-insertVal :: (MonadState RuntimeData m) => VariableReference -> Value -> m ()
+insertVal :: (MonadState RuntimeData m) =>
+             NVariableReference -> Value -> m ()
 insertVal varRef val = modifyRefEnv modifyF
   where
-    insertV as = ((), setValue varRef val as)
+    base       = baseNVarReference varRef
+    insertV as = ((), setValue base varRef val as)
     modifyF re = case searchScopes (containsVar varRef) insertV re of
                   (Just _, re') -> re'
                   _             -> error "Eval.Runtime.insertVal"
 
 
 insertRefVal :: (MonadState RuntimeData m) =>
-                Reference -> VariableReference -> Value -> m ()
-insertRefVal (StackReference sc _) varRef val = modifyRefEnv modifyF
+                Reference -> NVariableReference -> Value -> m ()
+insertRefVal (StackReference sc (VarRef baseVar)) varRef val = 
+ modifyRefEnv modifyF
  where
-  insertV as = ((), setValue varRef val as)
+  insertV as = ((), setValue baseVar varRef val as)
   
   modifyF re = case searchScopes searchScope insertV re of
                 (Just _, re') -> re'
-                _             -> error "Eval.Runtime.insertRefVal"
+                _             -> error "Eval.Runtime.insertRefVal2"
  
   searchScope = (== sc) . scopeA
+insertRefVal _ _ _ = error "compound reference"
   
 
-getVarValue :: (MonadState RuntimeData m) => VariableReference -> m Value
+getVarValue :: (MonadState RuntimeData m) => NVariableReference -> m Value
 getVarValue varRef = 
   do refEnv' <- getRefEnv
      case searchScopes (containsVar varRef) f refEnv' of
       (Just v , _) -> return v
       _            -> error $ "Eval.Runtime.getVarValue: " ++ show varRef
  where
-  f as = (getValue varRef as, as)
+  base = baseNVarReference varRef
+  f as = (getValue base varRef as, as)
 
 getRefVarValue :: (MonadState RuntimeData m) =>
-                  Reference -> VariableReference -> m Value
-getRefVarValue (StackReference sc _) varRef =
+                  Reference -> NVariableReference -> m Value
+getRefVarValue (StackReference sc (VarRef baseVar)) varRef =
   do refEnv' <- getRefEnv
      case searchScopes searchScope f refEnv' of
       (Just v, _) -> return v
-      _           -> error "Eval.Runtime.getRefVarValue"
+      _           -> error "Eval.Runtime.getRefVarValue2"
  where
-  f as        = (getValue varRef as, as)
+  f as        = (getValue baseVar varRef as, as)
   searchScope = (== sc) . scopeA
+getRefVarValue _ _ = error "compound reference"
+
 
 
 getProcedure :: (MonadState RuntimeData m) =>
@@ -274,7 +295,7 @@ getProcedure ident =
 
 
 getVarDescriptor :: (MonadState RuntimeData m) =>
-                    VariableReference
+                    NVariableReference
                  -> m VariableDescriptor
 getVarDescriptor varRef =
   do refEnv' <- getRefEnv
@@ -283,11 +304,11 @@ getVarDescriptor varRef =
       _            -> error "Eval.Runtime.getVarDescriptor"
  where
   f as = (vd, as) where Just vd = lookup varId (symT as)
-                        varId   = baseVarReference varRef
+                        varId   = baseNVarReference varRef
 
 
 getVarScope :: (MonadState RuntimeData m) =>
-               VariableReference
+               NVariableReference
             -> m Scope
 getVarScope varRef =
   do refEnv' <- getRefEnv
@@ -310,8 +331,8 @@ getFunction ident =
   f as = (f', as) where Just f' = lookup ident (funcT as)
 
 
-containsVar :: VariableReference -> ActiveScope -> Bool
-containsVar varRef = (member (baseVarReference varRef)) . symT
+containsVar :: NVariableReference -> ActiveScope -> Bool
+containsVar varRef = (member (baseNVarReference varRef)) . symT
 
 containsProc :: Identifier -> ActiveScope -> Bool
 containsProc ident = (member ident) . procT
@@ -331,3 +352,16 @@ data RuntimeParameter =
    , paramValue :: Value 
   }
  deriving (Show)
+
+
+data NVariableReference =
+   NVarRef Identifier
+ | NFieldRef NVariableReference Identifier
+ | NIndexRef NVariableReference Value
+ deriving (Show)
+
+baseNVarReference :: NVariableReference -> Identifier
+baseNVarReference nRef = case nRef of
+  NVarRef i     -> i
+  NFieldRef r _ -> baseNVarReference r
+  NIndexRef r _ -> baseNVarReference r

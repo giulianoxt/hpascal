@@ -111,26 +111,29 @@ writeln = haskellProc check fun
 -- * Funções pré-definidas
 
 
+lexem :: (Read a) => IO a
+lexem = do skip isSpace
+           x <- skip (not . isSpace)
+           return (read x)
+ where
+  skip f = do look <- try $ hLookAhead stdin
+              case look of
+               Left (_ :: IOError) -> return []
+               Right c
+                | f c       -> do hGetChar stdin
+                                  cs <- skip f
+                                  return (c : cs)
+                | otherwise -> return []
+
+
 readint :: Function
 readint = haskellFunc check IntegerT fun
  where
   check [] = True
   check _  = False
-  
-  fun []   = do skip isSpace
-                num <- skip isDigit
-                return (IntVal (read num))
-  
-  skip f   = do look <- try $ hLookAhead stdin
-                case look of
-                 Left (_ :: IOError) -> return []
-                 Right c
-                  | f c              ->
-                         do hGetChar stdin
-                            cs <- skip f
-                            return (c : cs)
-                  | otherwise        ->
-                         return []
+
+  fun []   = do num <- lexem
+                return (IntVal num)
 
 
 readfloat :: Function
@@ -139,7 +142,7 @@ readfloat = haskellFunc check FloatT fun
   check [] = True
   check _  = False
   
-  fun []   = do num <- readLn
+  fun []   = do num <- lexem
                 return (FloatVal num)
 
 

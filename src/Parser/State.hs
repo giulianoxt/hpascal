@@ -43,6 +43,7 @@ data ParserState = ParserState {
    staticT    :: [StaticData]
  , errors     :: [CompError]    -- ^ Lista de erros de compilacao
  , onFunction :: Maybe (Identifier, Type)
+ , constTable :: Map Identifier Expr
 } deriving (Show)
 
 
@@ -62,6 +63,7 @@ data ErrorMsg  =
  | ConstAssignment        String
  | ReferenceAssignment    String
  | InvalidFieldAccess     String
+ | ExpectingConstant
  | MultipleInitialization
 
 
@@ -81,6 +83,8 @@ instance Show ErrorMsg where
     "Identifier already used: " ++ msg
   show (MultipleInitialization)    =
     "Invalid multiple variable initialization"
+  show (ExpectingConstant)         =
+    "Expecting constant expression"
   show (WrongCallSignature msg)    =
     "No signature match for " ++ msg
   show (AmbiguousCall msg)         =
@@ -166,6 +170,14 @@ lookupFuncIdent ident =
   do l <- getStaticData
      return $ searchIdentifier ident stFuncT l
 
+lookupConstIdent :: Identifier -> HParser (Maybe Expr)
+lookupConstIdent cId =
+  do st <- getState
+     return $ lookup cId $ constTable st
+
+updateConstT :: Identifier -> Expr -> HParser ()
+updateConstT cId cExpr = updateState $ \st ->
+  st { constTable = insert cId cExpr (constTable st) }
 
 -- | Insere o par (identificador, tipo) na tabela de simbolos,
 -- sem se preocupar se o simbolo ja estava presente
@@ -336,6 +348,7 @@ initialState = ParserState {
               , scope   = ["Builtins"]
              } : []
  , errors     = []
+ , constTable = empty
  , onFunction = Nothing
 }
 
