@@ -8,7 +8,8 @@ import Language.AST
 import TypeSystem.Types
 
 import Data.Char
-import Data.Map (fromList, empty)
+import Data.Array
+import Data.Map hiding (map)
 
 import System.IO
 import Control.Exception
@@ -58,8 +59,10 @@ builtinFuncT = fromList [
     , ("not", not')	
     , ("succ", succ')
     , ("pred", pred')
-	, ("ord", ord')
-	, ("chr", chr')	
+    , ("ord", ord')
+    , ("chr", chr')	
+    , ("low", low)
+    , ("high", high)
 	]
 
 
@@ -309,4 +312,19 @@ chr' = pureHaskellFunc check CharT fun
 		check _ = False
 		
 		fun [IntVal n] = CharVal (Data.Char.chr n)
-		
+
+low :: Function
+low = pureHaskellFunc check IntegerT fun
+ where
+  check [ArrayT _ _] = True
+  check _            = False
+  
+  fun [ArrayVal a] = IntVal . fst $ bounds a
+
+high :: Function
+high = pureHaskellFunc check IntegerT fun
+ where
+  check [ArrayT _ _] = True
+  check _            = False
+  
+  fun [ArrayVal a] = IntVal . snd $ bounds a

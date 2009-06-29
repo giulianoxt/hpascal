@@ -1,9 +1,7 @@
 program TestMatriz;
 
-const N = 3;
-
 type
-  MatrizT = array [1 .. N, 1 .. N] of integer;
+  MatrizT = array [1 .. 3, 1 .. 5] of integer;
 
 var
   x : MatrizT;
@@ -12,8 +10,8 @@ var
 procedure printMatrizT (var m : MatrizT);
 var i, j : integer;
 begin
- for i := 1 to N do begin
-  for j := 1 to N do 
+ for i := low(m) to high(m) do begin
+  for j := low(m[i]) to high(m[i]) do 
     write(m[i][j], ' ');
   writeln();
  end;
