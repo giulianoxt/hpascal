@@ -458,11 +458,11 @@ variableReference =
   fieldReference varRef =
     do T.symbol "."
        field <- T.identifier
-       varReference (FieldRef varRef field)
+       varReference $ FieldRef varRef field
   
   indexReference varRef =
     do exprL <- T.brackets $ T.commaSep1 $ expression
-       return $ buildIndexRef varRef (reverse exprL)
+       varReference $ buildIndexRef varRef (reverse exprL)
   
   buildIndexRef varRef []     = varRef
   buildIndexRef varRef (e:es) = IndexRef (buildIndexRef varRef es) e
@@ -555,8 +555,9 @@ functionCall (VarRef funcId) =
      let call = FunctionCall funcId params (-1)
      call'  <- processFuncCall call
      return call'
-functionCall _ = fail $ "function call with "
-                     ++ "compound var reference"
+functionCall _ =
+ do T.symbol "("
+    fail $ "function call with " ++ "compound var reference"
 
 
 enterBlock :: Identifier -> HParser Block
