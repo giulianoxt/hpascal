@@ -6,6 +6,7 @@ import Language.Basic
 
 import Modules.Builtins
 import Modules.Math
+import Modules.String
 
 import Data.Map
 
@@ -17,4 +18,5 @@ modules :: Map Identifier PascalModule
 modules = fromList [
      ("Builtin", builtin)
    , ("Math"   , math)
+   , ("String" , string)
  ]
