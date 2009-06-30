@@ -156,6 +156,7 @@ evalExpr expr =
     e1 :+: e2  -> bin e1 e2 $ numOp2 (+) (+)
     e1 :-: e2  -> bin e1 e2 $ numOp2 (-) (-)
     e1 :*: e2  -> bin e1 e2 $ numOp2 (*) (*)
+    e1 `Mod` e2 -> bin e1 e2 $ numOp2 (mod) (error "float mod")
     e1 :**: e2 -> bin e1 e2 $ expOp2
     e1 :/: e2  -> bin e1 e2 $ divOp2
     
