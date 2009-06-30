@@ -159,6 +159,11 @@ evalExpr expr =
     e1 :**: e2 -> bin e1 e2 $ expOp2
     e1 :/: e2  -> bin e1 e2 $ divOp2
     
+    e1 `Or`  e2 -> bin e1 e2 $ boolOp2 (||)
+    e1 `Xor` e2 -> bin e1 e2 $ boolOp2 (/=)
+    e1 `And` e2 -> bin e1 e2 $ boolOp2 (&&)
+    
+    
     Not e     -> unary e   $ boolOp1 not
     Var varR  -> evalVarReference varR
     
