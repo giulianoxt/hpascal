@@ -3,13 +3,9 @@
 
 module Modules.Builtins where
 
-import Eval.Values
-import Language.AST
-import TypeSystem.Types
 import Modules.Basic
 
 import Data.Char
-import Data.Array
 import Data.Map hiding (map)
 
 import System.IO
@@ -37,8 +33,6 @@ builtinModule = HaskellModule {
     , ("readfloat", readfloat)
     , ("ord", ord')
     , ("chr", chr')     
-    , ("low", low)
-    , ("high", high)
    ]
 }
 
@@ -105,32 +99,16 @@ readfloat = haskellFunc check FloatT fun
 
 ord' :: Function
 ord' = pureHaskellFunc check IntegerT fun
-	where
-		check [CharT] = True
-		check _ = False
-		
-		fun [CharVal n] = IntVal (Data.Char.ord n)
-		
+  where
+    check [CharT] = True
+    check _ = False
+
+    fun [CharVal n] = IntVal (Data.Char.ord n)
+
 chr' :: Function
 chr' = pureHaskellFunc check CharT fun
-	where
-		check [IntegerT] = True
-		check _ = False
-		
-		fun [IntVal n] = CharVal (Data.Char.chr n)
+  where
+    check [IntegerT] = True
+    check _ = False
 
-low :: Function
-low = pureHaskellFunc check IntegerT fun
- where
-  check [ArrayT _ _] = True
-  check _            = False
-  
-  fun [ArrayVal a] = IntVal . fst $ bounds a
-
-high :: Function
-high = pureHaskellFunc check IntegerT fun
- where
-  check [ArrayT _ _] = True
-  check _            = False
-  
-  fun [ArrayVal a] = IntVal . snd $ bounds a
+    fun [IntVal n] = CharVal (Data.Char.chr n)

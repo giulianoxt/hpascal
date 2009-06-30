@@ -2,21 +2,12 @@
 
 module Modules.Math where
 
-import Language.AST
 import Modules.Basic
-
-import Eval.Values
-import TypeSystem.Types
-
-import Data.Map
 
 
 math :: PascalModule 
-math = HaskellModule {
-   mSymT  = empty
- , mTypeT = empty
- , mProcT = empty
- , mFuncT = fromList [
+math = emptyModule {
+ mFuncT = fromList [
       ("pow"  , pow)
     , ("round", round')
     , ("sin"  , sin')
