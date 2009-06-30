@@ -32,7 +32,7 @@ builtinModule = HaskellModule {
       ("readint", readint)
     , ("readfloat", readfloat)
     , ("ord", ord')
-    , ("chr", chr')     
+    , ("chr", chr')
    ]
 }
 
