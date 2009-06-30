@@ -4,9 +4,10 @@ module Modules.Init where
 import Language.AST
 import Language.Basic
 
-import Modules.Builtins
 import Modules.Math
+import Modules.Array
 import Modules.String
+import Modules.Builtins
 
 import Data.Map
 
@@ -19,4 +20,5 @@ modules = fromList [
      ("Builtin", builtin)
    , ("Math"   , math)
    , ("String" , string)
+   , ("Array"  , array)
  ]

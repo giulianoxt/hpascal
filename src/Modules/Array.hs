@@ -41,4 +41,4 @@ size = pureHaskellFunc check IntegerT fun
   check [ArrayT _ _] = True
   check _            = False
   
-  fun [ArrayVal a]   = IntVal $ numElements a
+  fun [ArrayVal v]   = IntVal (b - a) where (a, b) = bounds v
