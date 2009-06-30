@@ -1,7 +1,12 @@
 program Test;
+
+uses String, Builtin ;
+
 var
   x, y : integer;
   z : real;
+  a : string ;
+  b : string ;
   
 function double_val(n : integer) : integer;
 
@@ -16,25 +21,13 @@ end;
 
 begin
 
- write("Digite um número inteiro: ");
- x := readInt();
-
- z := 0.8;
+ a := "Hello " ;
+ b := "World" ;
  
- writeln("Dobro = ", double_val(x));
-
- writeln("log = ", log(z)) ;
- writeln("sqr = ", sqr(z)) ;
- writeln("sqrt = ", sqrt(z)) ;
- writeln("arcsin = ", arcsin(z)) ;
- writeln("arccos = ", arccos(z)) ;
- writeln("arctan = ", arctan(z)) ;
- writeln("!(false) = ", not(false)) ;
- writeln("even(x) = ", even(x)) ;
- writeln("odd(x) = ", odd(x)) ;
- writeln("sin(z) = ", sin(z)) ;
- writeln("cos(z) = ", cos(z)) ;
- writeln("tan(z) = ", tan(z)) ;
+ writeln(strcat(a,b)) ;
+ writeln(strcmp(a,b)) ;
+ writeln(substr(a,1,3)) ;
+ writeln(strchr(a,'l',1)) ;
  
 end.
 
