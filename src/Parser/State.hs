@@ -10,11 +10,12 @@
 
 module Parser.State where
 
+import Modules.Init
 import TypeSystem.Types
 import Language.AST
 import Language.Basic
-import Language.Builtins
 import Language.Scope (Scope, enterScope)
+
 
 import Control.Monad (liftM, when)
 
@@ -122,6 +123,10 @@ getHeadTypeT = (stTypeT . head . staticT) `liftM` getState
 getStaticData :: HParser [StaticData]
 getStaticData = staticT `liftM` getState
 
+getHeadStaticData :: HParser StaticData
+getHeadStaticData = liftM head getStaticData
+
+
 isOnFunction :: HParser (Maybe (Identifier, Type))
 isOnFunction = liftM onFunction getState
 
@@ -177,7 +182,8 @@ lookupConstIdent cId =
 
 updateConstT :: Identifier -> Expr -> HParser ()
 updateConstT cId cExpr = updateState $ \st ->
-  st { constTable = insert cId cExpr (constTable st) }
+  st { constTable = insert cId cExpr (constTable st) }  
+
 
 -- | Insere o par (identificador, tipo) na tabela de simbolos,
 -- sem se preocupar se o simbolo ja estava presente
@@ -301,6 +307,24 @@ updateScope ident =
       st { staticT = newStaticData : staticT st }
 
 
+importModule :: PascalModule -> HParser ()
+importModule (HaskellModule mSymT' mTypeT' mProcT' mFuncT') =
+  updateState $ \st ->
+    let
+      staticTable = staticT st
+      headSd      = head staticTable
+      
+      newHeadSd   = headSd {
+                        stSymT  = union (stSymT  headSd) mSymT'
+                      , stTypeT = union (stTypeT headSd) mTypeT'
+                      , stProcT = union (stProcT headSd) mProcT'
+                      , stFuncT = union (stFuncT headSd) mFuncT'
+                    }
+    in
+    
+    st { staticT = newHeadSd : tail staticTable }
+
+
 withNewScope :: Identifier
              -> (Bool, Type)
              -> HParser a
@@ -341,10 +365,10 @@ logError msg =
 initialState   :: ParserState
 initialState = ParserState {
    staticT = StaticData {
-                stSymT  = builtinSymT
-              , stTypeT = builtinTypeT
-              , stProcT = builtinProcT
-              , stFuncT = builtinFuncT
+                stSymT  = mSymT  builtin
+              , stTypeT = mTypeT builtin
+              , stProcT = mProcT builtin
+              , stFuncT = mFuncT builtin
               , scope   = ["Builtins"]
              } : []
  , errors     = []

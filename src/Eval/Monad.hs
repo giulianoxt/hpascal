@@ -20,13 +20,14 @@ eval p = evalStateT (evalProgram p) defaultRuntimeData
 
 
 evalProgram :: Program -> HEval ()
-evalProgram (Program _ _ block) = evalBlock block
+evalProgram (Program _ _ block sd) =
+  evalNewScope sd $ evalBlock block
 
 
 evalBlock :: Block -> HEval ()
 evalBlock (Block decls stmt (sd:_)) =
-  evalNewScope sd $ do evalDeclarations decls
-                       evalStatement stmt
+ evalNewScope sd $ do evalDeclarations decls
+                      evalStatement stmt
 evalBlock _ = error "Eval.Monad.evalBlock"
 
 

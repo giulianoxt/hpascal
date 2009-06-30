@@ -326,7 +326,7 @@ getFunction ident =
   do refEnv' <- getRefEnv
      case searchScopes (containsFunc ident) f refEnv' of
       (Just f', _) -> return f'
-      _           -> error "Eval.Runtime.getFunction"
+      _            -> error "Eval.Runtime.getFunction"
  where
   f as = (f', as) where Just f' = lookup ident (funcT as)
 

@@ -54,11 +54,23 @@ hparser = do T.whiteSpace
 program :: HParser Program
 program = 
   do T.reserved "program"
-     ident <- T.identifier
+     ident   <- T.identifier
      T.symbol ";"
-     b     <- enterBlock ident
+     
+     imports <- option (UsesClause []) usesClause
+     processImports imports
+     sd <- getHeadStaticData
+     
+     b       <- enterBlock ident
      T.symbol "."
-     return (Program ident (UsesClause []) b)
+     return (Program ident imports b sd)
+ where
+  usesClause :: HParser UsesClause
+  usesClause =
+    do T.reserved "uses"
+       idl <- T.commaSep1 T.identifier
+       T.symbol ";"
+       return $ UsesClause idl
 
 
 -- | Reconhece um bloco de codigo ('Block'), contendo declaracoes

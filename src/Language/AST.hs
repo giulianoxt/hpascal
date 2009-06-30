@@ -25,7 +25,7 @@ import Control.Monad.Trans (MonadIO)
 -- * Programas
 
 -- | Raiz da arvore, representa um programa inteiro.
-data Program = Program Identifier UsesClause Block
+data Program = Program Identifier UsesClause Block StaticData
  deriving (Show)
 
 -- | Clausulas de uso. Importam nomes de funcoes e
@@ -259,6 +259,15 @@ instance (Show VariableReference) where
   show (VarRef i)          = i
   show (FieldRef varRef i) = show varRef ++ "." ++ i
   show (IndexRef varRef e) = show varRef ++ "[" ++ show e ++ "]"
+
+
+data PascalModule = HaskellModule {
+    mSymT  :: SymbolTable
+  , mTypeT :: TypeTable
+  , mProcT :: ProcedureTable
+  , mFuncT :: FunctionTable
+ } deriving (Show)
+
 
 -- | Definicao de um procedimento.
 data Procedure =

@@ -1,11 +1,12 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
 
-module Language.Builtins where
+module Modules.Builtins where
 
 import Eval.Values
 import Language.AST
 import TypeSystem.Types
+import Modules.Basic
 
 import Data.Char
 import Data.Array
@@ -13,80 +14,48 @@ import Data.Map hiding (map)
 
 import System.IO
 import Control.Exception
-import Control.Monad.Trans (liftIO)
 
 
 -- * Tabelas pré-definidas
 
-
-builtinSymT  :: SymbolTable
-builtinSymT  = empty
-
-builtinTypeT :: TypeTable
-builtinTypeT = fromList [
-     ("integer", IntegerT)
-   , ("boolean", BooleanT)
-   , ("string" , StringT)
-   , ("real"   , FloatT)
-   , ("char"   , CharT)
-  ]
-
-builtinProcT :: ProcedureTable
-builtinProcT = fromList [
+builtinModule :: PascalModule
+builtinModule = HaskellModule {
+   mSymT  = empty
+ , mTypeT = fromList [
+      ("integer", IntegerT)
+    , ("boolean", BooleanT)
+    , ("string" , StringT)
+    , ("real"   , FloatT)
+    , ("char"   , CharT)
+   ]
+ , mProcT = fromList [
       ("write"  , write)
     , ("writeln", writeln)
    ]
-
-builtinFuncT :: FunctionTable
-builtinFuncT = fromList [
+ , mFuncT = fromList [
       ("readint", readint)
     , ("readfloat", readfloat)
-    , ("pow"    , pow)
-    , ("round"  , round')
-    , ("sin", sin')
-    , ("cos", cos')	
-    , ("tan", tan')		
+    , ("cos", cos')     
+    , ("tan", tan')             
     , ("arcsin", arcsin)
     , ("arccos", arccos)
-    , ("arctan", arctan)	
-    , ("odd", odd')	
-    , ("even", even')	
+    , ("arctan", arctan)        
+    , ("odd", odd')     
+    , ("even", even')   
     , ("absi", absi)
     , ("absf", absf)
     , ("sqr", sqr')
     , ("sqrt", sqrt')
     , ("log", log')
-    , ("not", not')	
+    , ("not", not')     
     , ("succ", succ')
     , ("pred", pred')
     , ("ord", ord')
-    , ("chr", chr')	
+    , ("chr", chr')     
     , ("low", low)
     , ("high", high)
-	]
-
-
--- * Utils
-
-
-haskellProc :: ([Type] -> Bool)       -- ^ checagem da assinatura
-            -> ([Value] -> IO ())     -- ^ procedimento na monad IO
-            -> Procedure
-haskellProc c f   = HaskellProc c (liftIO . f)
-
-
-haskellFunc :: ([Type] -> Bool)       -- ^ checagem da assinatura
-            -> Type                   -- ^ tipo de retorno da funcao
-            -> ([Value] -> IO Value)  -- ^ funcao na monad IO
-            -> Function
-haskellFunc c t f = HaskellFunc c t (liftIO . f)
-
-
-pureHaskellFunc :: ([Type] -> Bool)   -- ^ checagem da assinatura
-                -> Type               -- ^ tipo de retorno
-                -> ([Value] -> Value) -- ^ funcao pura
-                -> Function
-pureHaskellFunc c t f = HaskellFunc c t (return . f)
+   ]
+}
 
 
 -- * Procedimentos pre-definidos
@@ -149,23 +118,6 @@ readfloat = haskellFunc check FloatT fun
                 return (FloatVal num)
 
 
-pow :: Function
-pow = pureHaskellFunc check IntegerT fun
- where
-  check [IntegerT, IntegerT] = True
-  check _                    = False
-  
-  fun [IntVal a, IntVal b]   = IntVal (a ^ b)
-
-
-round' :: Function
-round' = pureHaskellFunc check IntegerT fun
- where
-  check [FloatT]   = True
-  check _          = False
-  
-  fun [FloatVal n] = IntVal (round n)
-
 absi :: Function
 absi = pureHaskellFunc check IntegerT fun
 	where
@@ -181,14 +133,6 @@ absf = pureHaskellFunc check FloatT fun
 		check _ = False
 		
 		fun [FloatVal n] = FloatVal (abs n)
-		
-sin' :: Function
-sin' = pureHaskellFunc check FloatT fun
-	where
-		check [FloatT] = True
-		check _ = False
-		
-		fun [FloatVal n] = FloatVal (Prelude.sin n)
 		
 cos' :: Function
 cos' = pureHaskellFunc check FloatT fun

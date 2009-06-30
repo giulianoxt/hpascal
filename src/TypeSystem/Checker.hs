@@ -12,12 +12,24 @@ import Language.AST
 import Language.Basic
 import Parser.State
 import TypeSystem.Types
+import Modules.Init (modules)
 
 import Data.Map hiding (map)
 import Data.Maybe (fromJust)
 import Prelude hiding (lookup)
 
 import Control.Monad (when, forM_)
+
+
+processImports :: UsesClause -> HParser ()
+processImports (UsesClause idl) = pimports idl
+ where
+  pimports []     = return ()
+  pimports (m:ms) =
+    do case lookup m modules of
+        Nothing -> logError $ UnknownIdentifier m
+        Just pm -> importModule pm
+       pimports ms
 
 
 -- | Parser responsavel por processar uma declaracao de
